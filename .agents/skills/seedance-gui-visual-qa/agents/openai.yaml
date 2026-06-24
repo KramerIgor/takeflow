@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seedance GUI Visual QA"
+  short_description: "Check Seedance browser UI safely"
+  default_prompt: "Use $seedance-gui-visual-qa to visually verify the Seedance GUI at http://127.0.0.1:7860."

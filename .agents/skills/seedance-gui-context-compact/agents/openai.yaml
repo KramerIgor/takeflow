@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seedance Context Compact"
+  short_description: "Preserve Seedance stage context"
+  default_prompt: "Use $seedance-gui-context-compact to prepare a compact handoff for continuing Seedance GUI work."

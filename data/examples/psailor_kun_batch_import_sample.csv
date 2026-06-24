@@ -1,0 +1,4 @@
+episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths
+Episode_01,Scene_001,"quiet Russian residential courtyard, wide establishing shot",seedance-2.0-fast,4,480p,21:9,-1,false,
+Episode_01,Scene_001,"same courtyard, slow camera push toward bench",seedance-2.0-fast,4,480p,21:9,-1,false,
+Episode_01,Scene_001,"same courtyard, evening light, trees moving slightly",seedance-2.0-fast,4,480p,21:9,-1,false,

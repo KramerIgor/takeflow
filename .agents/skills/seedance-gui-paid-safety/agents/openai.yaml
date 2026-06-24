@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seedance Paid Safety"
+  short_description: "Prevent paid/API-key mistakes"
+  default_prompt: "Use $seedance-gui-paid-safety before any Seedance action that could touch paid generation or secrets."

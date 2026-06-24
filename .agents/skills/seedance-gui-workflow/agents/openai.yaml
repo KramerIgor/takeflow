@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seedance GUI Workflow"
+  short_description: "Work safely on Seedance GUI scope"
+  default_prompt: "Use $seedance-gui-workflow to plan and implement the next Seedance GUI change safely."

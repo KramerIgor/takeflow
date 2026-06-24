@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Seedance GUI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="page">
+    {% macro generation_form(form_kind) %}
+      <form
+        class="form generation-form {% if form_kind == 'single' %}single-generation-form{% endif %}"
+        method="post"
+        enctype="multipart/form-data"
+        {% if form_kind == "single" %}action="/run-single-generation"{% endif %}
+      >
+        {% if form_kind == "single" %}
+          <label>
+            Name
+            <input type="text" name="generation_name" placeholder="Optional name, e.g. opening-shot">
+          </label>
+
+          <label class="prompt-editor-label">
+            Prompt
+            <div class="prompt-dropzone" data-single-dropzone>
+              <textarea
+                name="prompt"
+                rows="9"
+                class="prompt-editor"
+                placeholder="Describe the anime video scene..."
+              ></textarea>
+              <div class="prompt-drop-hint">
+                Drop images, videos, or audio here, or type @ to reference attached files.
+              </div>
+              <div class="ref-token-menu" data-ref-token-menu hidden></div>
+            </div>
+          </label>
+
+          <div class="attached-refs-shell">
+            <div class="attached-refs-header">
+              <span>Attached references</span>
+              <label class="secondary-button file-picker-label">
+                Add files
+                <input
+                  type="file"
+                  name="reference_files"
+                  accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,audio/flac"
+                  multiple
+                  data-reference-files
+                >
+              </label>
+            </div>
+            <div class="attached-refs-list" data-attached-refs>
+              <div class="muted empty-refs">No references attached yet.</div>
+            </div>
+            <div class="hint">Video and audio references are stored in history; not sent to API yet.</div>
+            <div data-existing-reference-inputs></div>
+          </div>
+        {% else %}
+          <label>
+            Prompt
+            <textarea name="prompt" rows="8" placeholder="Describe the anime video scene..."></textarea>
+          </label>
+        {% endif %}
+
+        <div class="grid">
+          {% if form_kind != "single" %}
+            <label>
+              Episode
+              <input type="text" name="episode_name" value="Episode_01" placeholder="Episode_01">
+            </label>
+
+            <label>
+              Scene
+              <input type="text" name="scene_name" value="Scene_001" placeholder="Scene_001">
+            </label>
+          {% endif %}
+
+          <label>
+            Model
+            <select name="model">
+              {% for item in model_choices %}
+                <option value="{{ item.id }}" {% if item.id == default_model %}selected{% endif %}>
+                  {{ item.label }} — {{ item.note }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Duration
+            <select name="duration">
+              {% for item in durations %}
+                <option value="{{ item }}">{{ item }} seconds</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Resolution
+            <select name="resolution">
+              {% for item in resolutions %}
+                <option value="{{ item }}">{{ item }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Aspect ratio
+            <select name="aspect_ratio">
+              {% for item in aspect_ratios %}
+                <option value="{{ item }}">{{ item }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Seed
+            <input type="number" name="seed" value="-1">
+          </label>
+        </div>
+
+        <div class="checks">
+          <label>
+            <input type="checkbox" name="generate_audio" value="1">
+            Generate audio
+          </label>
+
+          <label>
+            <input type="checkbox" name="return_last_frame" value="1">
+            Return last frame
+          </label>
+        </div>
+
+        {% if form_kind != "single" %}
+          <div class="attached-refs-shell queue-refs-shell" data-queue-dropzone>
+            <div class="attached-refs-header">
+              <span>Reference images</span>
+              <label class="secondary-button file-picker-label">
+                Add images
+                <input type="file" name="reference_images" accept="image/png,image/jpeg,image/webp" multiple data-queue-reference-files>
+              </label>
+            </div>
+            <div class="attached-refs-list" data-queue-attached-refs>
+              <div class="muted empty-refs">Drop images here or choose files.</div>
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="actions">
+          {% if form_kind == "queue" %}
+            <button type="submit" formaction="/add-to-queue">Add to Queue</button>
+            <button type="submit" formaction="/draft-task">Save Draft Task</button>
+            <span class="hint">Queue-first workflow: add tasks first, then run the queue.</span>
+          {% elif form_kind == "single" %}
+            <button
+              type="submit"
+              class="paid-button"
+              data-paid-single-submit
+            >
+              Run Single Generation (paid)
+            </button>
+            <span class="hint" data-i18n="single_hint">Starts in background and appears in History while processing.</span>
+          {% endif %}
+        </div>
+      </form>
+    {% endmacro %}
+
+    {% macro queue_task_row(task, row_class="") %}
+      <div class="queue-row {{ row_class }}">
+        <div>#{{ task.id }}</div>
+        <div><span class="status-pill status-{{ task.status }}">{{ task.status }}</span></div>
+        <div>{{ task.model }}</div>
+        <div>
+          <div>{{ task.params.episode_name or "Episode_01" }}</div>
+          <div>{{ task.params.scene_name or "Scene_001" }}</div>
+          <div class="queue-settings">{{ task.params.duration }}s · {{ task.params.resolution }} · {{ task.params.aspect_ratio }}</div>
+          {% if task.is_batch_import %}
+            <div class="queue-badges">
+              <span class="queue-badge batch-badge">Batch import</span>
+              {% if task.batch_row_number %}
+                <span class="queue-badge">Row {{ task.batch_row_number }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+          {% if task.task_mode %}
+            <div class="queue-meta">mode: <span class="mono">{{ task.task_mode }}</span></div>
+          {% endif %}
+          {% if task.batch_import_id %}
+            <div class="queue-meta">batch import id: <span class="mono">{{ task.batch_import_id }}</span></div>
+          {% endif %}
+        </div>
+        <div class="queue-prompt">
+          {{ task.prompt }}
+        </div>
+        <div class="queue-ready">
+          <div>Video: {% if task.output_path %}yes{% else %}no{% endif %}</div>
+          {% if task.output_filename %}
+            <div>Output: <span class="mono">{{ task.output_filename }}</span></div>
+          {% endif %}
+          <div>Last frame: {% if task.last_frame_exists %}yes{% else %}no{% endif %}</div>
+          {% if task.output_path or task.run_dir %}<a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">Open folder</a>{% endif %}
+          {% if task.last_frame_exists %}
+            <img class="last-frame-preview compact-preview" src="{{ task.last_frame_preview_url }}" alt="Last frame preview">
+          {% endif %}
+
+          {% if task.run_dir or task.output_path or task.last_frame_exists %}
+            <details class="queue-debug">
+              <summary>Debug / files</summary>
+              <div class="queue-output">
+                <div>
+                  <span class="label">Full prompt</span>
+                  <div class="queue-full-prompt">{{ task.prompt }}</div>
+                </div>
+
+                {% if task.run_dir %}
+                  <div>
+                    <span class="label">Result folder</span>
+                    <div class="mono">{{ task.run_dir_windows_path or task.run_dir }}</div>
+                  </div>
+                {% endif %}
+
+                {% if task.output_path %}
+                  <div>
+                    <span class="label">Output video</span>
+                    <div class="mono">{{ task.output_windows_path or task.output_path }}</div>
+                  </div>
+                {% endif %}
+
+                {% if task.last_frame_exists %}
+                  <div class="last-frame-block">
+                    <span class="label">Last frame path</span>
+                    <div class="mono">{{ task.last_frame_windows_path or task.last_frame_path }}</div>
+                    <div class="path-actions">
+                      <a class="path-link open-path-link" href="#" data-open-path="{{ task.last_frame_path }}">
+                        Open last frame folder
+                      </a>
+                    </div>
+
+                    <form method="post" action="/continue-from-task/{{ task.id }}" class="inline-action-form continuation-action-form">
+                      <button
+                        type="submit"
+                        class="small-action-button continuation-button secondary-debug-button"
+                        onclick="return confirm('This will only add a queued continuation task. It will NOT start paid generation until you start the queue. Continue?');"
+                      >
+                        Continue from previous take
+                      </button>
+                    </form>
+                    <div class="hint">Debug fallback only. Main continuation should be prepared in the queue chain.</div>
+                  </div>
+                {% endif %}
+
+                <div class="path-actions">
+                  <a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">
+                    Open result folder
+                  </a>
+                </div>
+              </div>
+            </details>
+          {% endif %}
+
+          {% if task.status in ["failed", "recoverable"] and task.request_id %}
+            <div class="queue-error">
+              Failed after Segmind request was created. Recovery can check the existing request and download the result without a new paid submit.
+            </div>
+            <form method="post" action="/recover-task/{{ task.id }}" class="inline-action-form">
+              <button
+                type="submit"
+                class="small-action-button"
+                onclick="return confirm('This will not start a new paid generation. It will only check the existing Segmind request and try to download the result. Continue?');"
+              >
+                Recover result
+              </button>
+            </form>
+          {% elif task.status in ["failed", "recoverable"] %}
+            <div class="queue-error">
+              Failed before request_id was saved. Recovery is not available. You can copy this task back to queue with Retry failed.
+            </div>
+            <form method="post" action="/retry-task/{{ task.id }}" class="inline-action-form">
+              <button
+                type="submit"
+                class="small-action-button"
+                onclick="return confirm('This will only copy the failed task back to the queue. It will not start a new paid generation until you start the queue. Continue?');"
+              >
+                Retry failed
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endmacro %}
+
+    <section class="hero">
+      <div>
+        <h1>{{ app_title }}</h1>
+        <p class="muted" data-i18n="app_subtitle">{{ app_subtitle }}</p>
+      </div>
+      <div class="top-actions">
+        <div class="language-switch" aria-label="Language">
+          <button type="button" data-lang-option="en" class="active">EN</button>
+          <button type="button" data-lang-option="ru">RU</button>
+        </div>
+      </div>
+    </section>
+
+    {% if message %}
+      <section class="notice">
+        {{ message }}
+      </section>
+    {% endif %}
+
+    <nav class="tabs" aria-label="Main workflow tabs">
+      <button type="button" class="tab-button active" data-tab-target="project-settings" data-i18n="tab_projects">Projects</button>
+      <button type="button" class="tab-button" data-tab-target="single-generation" data-i18n="tab_single">Single Generation</button>
+      <button type="button" class="tab-button" data-tab-target="single-history" data-i18n="tab_history">History</button>
+      <button type="button" class="tab-button" data-tab-target="queue-workflow" data-i18n="tab_queue">Queue</button>
+    </nav>
+
+    <section class="tab-panel active" data-tab-panel="project-settings">
+      <section class="panel project-panel">
+        <div class="section-title-row">
+          <h2 data-i18n="projects_title">Projects</h2>
+          <span class="status-pill">Active: {{ active_project_name }}</span>
+        </div>
+
+        <div class="project-meta">
+          <div><span class="label" data-i18n="output_root">Output root</span><div class="mono">{{ output_root_windows_path or output_root }}</div></div>
+          <div><span class="label" data-i18n="active_folder">Active folder</span><div class="mono">{{ output_dir }}</div></div>
+        </div>
+
+        <div class="settings-grid">
+          <section class="settings-block">
+            <h3 data-i18n="api_settings">API settings</h3>
+            {% if api_key_set %}
+              <div class="status ok" data-i18n="api_key_set">API key is set</div>
+            {% else %}
+              <div class="status bad" data-i18n="api_key_missing">API key is missing</div>
+            {% endif %}
+            <form method="post" action="/update-api-settings" class="form compact-form">
+              <label>
+                API key
+                <input type="password" name="segmind_api_key" autocomplete="off" placeholder="Paste new Segmind API key">
+              </label>
+              <label>
+                API base
+                <input type="text" name="segmind_api_base" value="{{ api_base }}" autocomplete="off">
+              </label>
+              <label>
+                Default model
+                <select name="default_model">
+                  {% for item in model_choices %}
+                    <option value="{{ item.id }}" {% if item.id == default_model %}selected{% endif %}>{{ item.label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="actions">
+                <button type="submit" data-i18n="save_api">Save API settings</button>
+                <span class="hint" data-i18n="api_restart_hint">Restart the GUI after changing key or model.</span>
+              </div>
+            </form>
+          </section>
+
+          <section class="settings-block">
+            <h3 data-i18n="project_list">Project folders</h3>
+            <div class="project-list">
+              {% if projects %}
+                {% for project in projects %}
+                  <div class="project-row {% if project.is_active %}active-project{% endif %}">
+                    <div>
+                      <strong>{{ project.name }}</strong>
+                      <div class="mono soft">{{ project.path }}</div>
+                    </div>
+                    <div class="project-actions">
+                      {% if project.is_active %}
+                        <span class="project-badge">active</span>
+                      {% else %}
+                        <form method="post" action="/set-active-project" class="inline-action-form project-switch-form">
+                          <input type="hidden" name="project_name" value="{{ project.name }}" />
+                          <button type="submit" class="small-action-button" onclick="return confirm('Switch active project to {{ project.name }}?');">Switch</button>
+                        </form>
+                        <form method="post" action="/delete-project" class="inline-action-form project-delete-form">
+                          <input type="hidden" name="project_name" value="{{ project.name }}" />
+                          <button type="submit" class="small-action-button danger-button" onclick="return confirm('Delete project folder {{ project.name }}? This removes files inside that project.');">Delete</button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <div class="muted">No projects found yet.</div>
+              {% endif %}
+            </div>
+
+            <form method="post" action="/create-project" class="project-create-form">
+              <label for="project_name" data-i18n="create_project">Create project</label>
+              <div class="project-create-row">
+                <input id="project_name" name="project_name" type="text" placeholder="New_project_name" autocomplete="off" />
+                <button type="submit" data-i18n="create">Create</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="single-generation">
+      <section class="panel">
+        <h2 data-i18n="single_title">Single Generation</h2>
+        {{ generation_form("single") }}
+      </section>
+
+      {% if last_run %}
+        <section class="panel">
+          <h2>Last generation run</h2>
+          <div class="status-grid">
+            <div>
+              <div class="label">Status</div>
+              <div class="mono">{{ last_run.status }}</div>
+            </div>
+            <div>
+              <div class="label">Run folder</div>
+              <div class="mono">{{ last_run.run_dir }}</div>
+            </div>
+            <div>
+              <div class="label">Model</div>
+              <div class="mono">{{ last_run.model }}</div>
+            </div>
+            {% if last_run.video_path %}
+              <div>
+                <div class="label">Video path</div>
+                <div class="mono">{{ last_run.video_path }}</div>
+              </div>
+              <div>
+                <div class="label">Video size</div>
+                <div class="mono">{{ last_run.video_size_bytes }} bytes</div>
+              </div>
+            {% endif %}
+            <div>
+              <div class="label">Elapsed total</div>
+              <div class="mono">{{ last_run.elapsed_total_seconds }} seconds</div>
+            </div>
+            {% if last_run.inference_time %}
+              <div>
+                <div class="label">Segmind inference time</div>
+                <div class="mono">{{ last_run.inference_time }} seconds</div>
+              </div>
+            {% endif %}
+            {% if last_run.error %}
+              <div>
+                <div class="label">Error</div>
+                <div class="mono">{{ last_run.error }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </section>
+
+    <section class="tab-panel" data-tab-panel="single-history">
+      <section class="panel">
+        <h2 data-i18n="history_title">History</h2>
+        <p class="muted" data-i18n="history_hint">Single Generation runs appear here, including processing and failed runs.</p>
+        {% if has_processing_single_generation %}
+          <div class="notice compact-notice" data-i18n="processing_notice">A generation is processing. This page refreshes automatically.</div>
+        {% endif %}
+
+        {% if single_history %}
+          <div class="single-history-grid">
+            {% for item in single_history %}
+              <article class="single-history-card">
+                <div class="history-video-box">
+                  {% if item.output_preview_url %}
+                    <video src="{{ item.output_preview_url }}" controls preload="metadata"></video>
+                  {% else %}
+                    <div class="history-video-placeholder">No video preview</div>
+                  {% endif %}
+                </div>
+
+                <div class="history-card-body">
+                  <div class="history-card-title-row">
+                    <h3>{{ item.name }}</h3>
+                    <span class="status-pill status-{{ item.status }}">{{ item.status }}</span>
+                  </div>
+
+                  <div class="history-prompt">{{ item.prompt }}</div>
+
+                  <div class="history-refs">
+                    {% if item.refs %}
+                      {% for ref in item.refs %}
+                        <span class="history-ref-chip">
+                          {% if ref.media_type == "image" and ref.preview_url %}
+                            <img src="{{ ref.preview_url }}" alt="{{ ref.filename }}">
+                          {% else %}
+                            <span class="media-badge">{{ ref.media_type }}</span>
+                          {% endif %}
+                          <span>{{ ref.filename }}</span>
+                          {% if ref.api_warning %}
+                            <span class="ref-warning">{{ ref.api_warning }}</span>
+                          {% endif %}
+                        </span>
+                      {% endfor %}
+                    {% else %}
+                      <span class="muted">No attached references</span>
+                    {% endif %}
+                  </div>
+
+                  <div class="history-meta-grid">
+                    <div><span class="label">Model</span><span>{{ item.model }}</span></div>
+                    <div><span class="label">Duration</span><span>{{ item.duration }}s</span></div>
+                    <div><span class="label">Resolution</span><span>{{ item.resolution }}</span></div>
+                    <div><span class="label">Aspect ratio</span><span>{{ item.aspect_ratio }}</span></div>
+                    <div><span class="label">Seed</span><span>{{ item.seed }}</span></div>
+                    <div><span class="label">Created</span><span>{{ item.created_at or "unknown" }}</span></div>
+                    <div><span class="label">Completed</span><span>{{ item.completed_at or "unknown" }}</span></div>
+                  </div>
+
+                  {% if item.cost_label %}
+                    <div class="history-path">
+                      <span class="label">Cost</span>
+                      <span class="mono">{{ item.cost_label }}</span>
+                    </div>
+                  {% endif %}
+
+                  {% if item.output_path or item.run_dir %}
+                    <div class="history-path">
+                      <span class="label">Folder</span>
+                      <span class="mono">{{ item.run_dir_windows_path or item.run_dir }}</span>
+                      <a class="path-link open-path-link" href="#" data-open-path="{{ item.output_path or item.run_dir }}">Open folder</a>
+                    </div>
+                  {% endif %}
+
+                  {% if item.error %}
+                    <div class="queue-error">{{ item.error }}</div>
+                  {% endif %}
+
+                  <div class="actions history-actions">
+                    <button type="button" class="secondary-button history-edit-button">Edit prompt</button>
+                    <button type="button" class="paid-button history-regenerate-button">Regenerate</button>
+                  </div>
+
+                  <script type="application/json" class="history-item-data">
+                    {{ {
+                      "name": item.name,
+                      "prompt": item.prompt,
+                      "model": item.model,
+                      "duration": item.duration,
+                      "resolution": item.resolution,
+                      "aspect_ratio": item.aspect_ratio,
+                      "seed": item.seed,
+                      "generate_audio": item.generate_audio,
+                      "return_last_frame": item.return_last_frame,
+                      "refs": item.refs
+                    } | tojson }}
+                  </script>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="muted">No Single Generation history yet.</div>
+          <div class="actions history-actions">
+            <button type="button" class="secondary-button" disabled>Edit prompt</button>
+            <button type="button" class="paid-button" disabled>Regenerate</button>
+          </div>
+        {% endif %}
+      </section>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="queue-workflow">
+      <section class="panel">
+        <h2>Add to Queue</h2>
+        {{ generation_form("queue") }}
+      </section>
+
+      {% if last_queue_add %}
+      <section class="panel">
+        <h2>Last queued task</h2>
+        <div class="status-grid">
+          <div>
+            <div class="label">Task ID</div>
+            <div class="mono">#{{ last_queue_add.task_id }}</div>
+          </div>
+          <div>
+            <div class="label">Status</div>
+            <div class="mono">{{ last_queue_add.status }}</div>
+          </div>
+          <div>
+            <div class="label">Model</div>
+            <div class="mono">{{ last_queue_add.model }}</div>
+          </div>
+          <div>
+            <div class="label">Task folder</div>
+            <div class="mono">{{ last_queue_add.task_dir }}</div>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if last_draft %}
+      <section class="panel">
+        <h2>Last saved draft</h2>
+        <div class="status-grid">
+          <div>
+            <div class="label">Draft folder</div>
+            <div class="mono">{{ last_draft.draft_dir }}</div>
+          </div>
+          <div>
+            <div class="label">Model</div>
+            <div class="mono">{{ last_draft.model }}</div>
+          </div>
+          <div>
+            <div class="label">Reference images</div>
+            <div class="mono">{{ last_draft.refs_count }}</div>
+          </div>
+          <div>
+            <div class="label">Settings</div>
+            <div class="mono">{{ last_draft.duration }}s · {{ last_draft.resolution }} · {{ last_draft.aspect_ratio }}</div>
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
+
+      <details class="advanced-panel">
+        <summary>Batch CSV Import</summary>
+        <section class="panel compact-inner-panel">
+        <p class="muted">
+          Upload a CSV file to validate or create queued tasks. Import never starts paid generation.
+        </p>
+        <div class="chain-help">
+          Required columns:
+          <span class="mono">episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths</span>.
+          Use <span class="mono">;</span> to separate multiple reference paths.
+        </div>
+
+        <form class="form batch-import-form" method="post" action="/batch-import" enctype="multipart/form-data">
+          <label>
+            CSV file
+            <input type="file" name="csv_file" accept=".csv,text/csv" required>
+          </label>
+
+          <div class="actions">
+            <button class="safe-button" type="submit" name="import_mode" value="preview">
+              Preview CSV Import (no tasks)
+            </button>
+            <button
+              class="secondary-button"
+              type="submit"
+              name="import_mode"
+              value="confirm"
+              onclick="return confirm('This will create queued tasks only. No paid generation will start. Continue?');"
+            >
+              Create Queued Tasks Only (no paid generation)
+            </button>
+            <span class="hint">Preview validates the file without creating tasks. Confirm creates queued tasks only.</span>
+          </div>
+        </form>
+
+        {% if batch_import_report %}
+          <div class="batch-report">
+            <h3>Batch Import Report</h3>
+            <div class="status-grid">
+              <div>
+                <div class="label">Mode</div>
+                <div class="mono">{{ batch_import_report.mode }}</div>
+              </div>
+              <div>
+                <div class="label">Status</div>
+                <div class="mono">{{ batch_import_report.status }}</div>
+              </div>
+              <div>
+                <div class="label">Rows / valid rows</div>
+                <div class="mono">{{ batch_import_report.total_rows }} / {{ batch_import_report.valid_rows }}</div>
+              </div>
+              <div>
+                <div class="label">Created tasks</div>
+                <div class="mono">{{ batch_import_report.created_count }}</div>
+              </div>
+              {% if batch_import_report.batch_import_id %}
+                <div>
+                  <div class="label">Batch import ID</div>
+                  <div class="mono">{{ batch_import_report.batch_import_id }}</div>
+                </div>
+              {% endif %}
+              {% if batch_import_report.created_task_ids %}
+                <div>
+                  <div class="label">Task IDs</div>
+                  <div class="mono">{{ batch_import_report.created_task_ids | join(", ") }}</div>
+                </div>
+              {% endif %}
+            </div>
+
+            {% if batch_import_report.errors %}
+              <div class="batch-errors">
+                <div class="label">Errors</div>
+                {% for error in batch_import_report.errors %}
+                  <div class="queue-error">
+                    Row {{ error.row }} · {{ error.field }}: {{ error.message }}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        </section>
+      </details>
+
+      <section class="panel">
+      <h2 data-i18n="queue_controls">Queue Controls</h2>
+      <p class="muted" data-i18n="queue_controls_hint">Run queued tasks when you are ready. Paid actions always ask for confirmation.</p>
+
+      <form method="post" action="/start-queue-once" class="paid-action-block">
+        <div class="actions">
+          <button
+            class="paid-button"
+            type="submit"
+            onclick="return confirm('This will start a paid Segmind generation for the next queued task. Continue?');"
+          >
+            Start Queue (paid)
+          </button>
+          <span class="hint">Paid action. Processes only the next queued task.</span>
+        </div>
+      </form>
+
+      <details class="advanced-run">
+        <summary>Advanced queue run</summary>
+      <form method="post" action="/start-queue-loop" class="queue-loop-form paid-action-block">
+        <div class="grid small-grid">
+          <label>
+            Max tasks in this run
+            <input type="number" name="max_tasks" value="2" min="1" max="20">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button
+            class="paid-button"
+            type="submit"
+            onclick="return confirm('This will start paid Segmind generations for queued tasks, up to the selected limit. Continue?');"
+          >
+            Start Queue Loop (paid)
+          </button>
+          <span class="hint">Processes queued tasks one by one. Stops on first failure. Use Night Mode Safety Preview below before starting paid queue work.</span>
+        </div>
+      </form>
+      </details>
+      </section>
+
+      <details class="advanced-panel">
+        <summary>Night Mode Safety Preview</summary>
+      <section class="panel compact-inner-panel">
+        <h2>Night Mode Safety Preview</h2>
+        <p class="muted">
+          Preview only. This builds a queue plan, does not run the queue, and does not start paid generation.
+          Paid generation requires a separate Start Queue action.
+        </p>
+
+        <form method="post" action="/night-mode-preview" class="form night-mode-form">
+          <div class="grid small-grid">
+            <label>
+              Max tasks
+              <input type="number" name="max_tasks" value="5" min="1" max="50">
+            </label>
+
+            <label>
+              Stop on consecutive errors
+              <input type="number" name="stop_on_consecutive_errors" value="1" min="1" max="10">
+            </label>
+          </div>
+
+          <div class="actions">
+            <button class="safe-button" type="submit">Preview Night Mode Plan</button>
+            <span class="hint">Safe preview only. No queue processing starts here.</span>
+          </div>
+        </form>
+
+        {% if night_mode_report %}
+          <div class="night-report">
+            <h3>Night Mode Preview Report</h3>
+            <div class="status-grid">
+              <div>
+                <div class="label">Queued tasks</div>
+                <div class="mono">{{ night_mode_report.queued_count }}</div>
+              </div>
+              <div>
+                <div class="label">Selected tasks</div>
+                <div class="mono">{{ night_mode_report.selected_count }}</div>
+              </div>
+              <div>
+                <div class="label">Max tasks</div>
+                <div class="mono">{{ night_mode_report.max_tasks }}</div>
+              </div>
+              <div>
+                <div class="label">Stop on consecutive errors</div>
+                <div class="mono">{{ night_mode_report.stop_on_consecutive_errors }}</div>
+              </div>
+              <div>
+                <div class="label">Dependent continuation tasks</div>
+                <div class="mono">{{ night_mode_report.dependent_continuation_count }}</div>
+              </div>
+              <div>
+                <div class="label">Blocked by parent</div>
+                <div class="mono">{{ night_mode_report.blocked_by_parent_count }}</div>
+              </div>
+            </div>
+
+            <div class="chain-help">
+              Dependent continuation chains stay sequential. No parallel dependent continuation chains are planned.
+            </div>
+
+            {% if night_mode_report.tasks %}
+              <div class="night-task-list">
+                {% for item in night_mode_report.tasks %}
+                  <div class="night-task-row">
+                    <div class="mono">#{{ item.task_id }}</div>
+                    <div>{{ item.episode_name }} / {{ item.scene_name }}</div>
+                    <div>{{ item.model }}</div>
+                    <div>
+                      {% if item.continuation_mode %}
+                        {{ item.continuation_mode }} from #{{ item.parent_task_id }}
+                      {% else %}
+                        independent
+                      {% endif %}
+                    </div>
+                    <div>
+                      Parent ready: {% if item.parent_ready %}yes{% else %}no{% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+        </section>
+      </details>
+
+      {% if last_queue_run %}
+      <section class="panel">
+        <h2>Last queue run</h2>
+        <div class="status-grid">
+          <div>
+            <div class="label">Processed / processed count</div>
+            <div class="mono">{{ last_queue_run.processed }}</div>
+          </div>
+          {% if last_queue_run.reason %}
+            <div>
+              <div class="label">Reason</div>
+              <div class="mono">{{ last_queue_run.reason }}</div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.task_id %}
+            <div>
+              <div class="label">Task ID</div>
+              <div class="mono">#{{ last_queue_run.task_id }}</div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.status %}
+            <div>
+              <div class="label">Status</div>
+              <div class="mono">{{ last_queue_run.status }}</div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.run_dir %}
+            <div>
+              <div class="label">Run folder / result files</div>
+              <div class="mono">{{ last_queue_run.run_dir }}</div>
+              {% if last_queue_run.run_dir_windows_path %}
+                <div class="mono soft">{{ last_queue_run.run_dir_windows_path }}</div>
+              {% endif %}
+            </div>
+          {% endif %}
+          {% if last_queue_run.output_path %}
+            <div>
+              <div class="label">Output video</div>
+              <div class="mono">{{ last_queue_run.output_path }}</div>
+              {% if last_queue_run.output_windows_path %}
+                <div class="mono soft">{{ last_queue_run.output_windows_path }}</div>
+              {% endif %}
+              <div class="path-actions">
+                <a class="path-link open-path-link" href="#" data-open-path="{{ last_queue_run.output_path }}">
+                  Open result folder
+                </a>
+              </div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.elapsed_total_seconds %}
+            <div>
+              <div class="label">Elapsed total</div>
+              <div class="mono">{{ last_queue_run.elapsed_total_seconds }} seconds</div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.inference_time %}
+            <div>
+              <div class="label">Segmind inference time</div>
+              <div class="mono">{{ last_queue_run.inference_time }} seconds</div>
+            </div>
+          {% endif %}
+          {% if last_queue_run.error %}
+            <div>
+              <div class="label">Error</div>
+              <div class="mono">{{ last_queue_run.error }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="panel">
+      <h2 data-i18n="queue_history">Queue / History</h2>
+      {% if queue_tasks %}
+        <div class="queue-summary">
+          Open generated folders directly from the rows below. Completed and cancelled tasks are collapsed.
+        </div>
+        <div class="queue-table">
+          <div class="queue-row queue-head">
+            <div>ID</div>
+            <div>Status</div>
+            <div>Model</div>
+            <div>Scene</div>
+            <div>Prompt</div>
+            <div>Ready</div>
+          </div>
+          {% set recent = namespace(completed=0, shown=0) %}
+          {% for task in queue_tasks %}
+            {% if task.status not in ["completed", "cancelled"] %}
+              {{ queue_task_row(task) }}
+              {% set recent.shown = recent.shown + 1 %}
+            {% elif task.status == "completed" and recent.completed < 3 %}
+              {{ queue_task_row(task, "recent-completed-row") }}
+              {% set recent.completed = recent.completed + 1 %}
+              {% set recent.shown = recent.shown + 1 %}
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        {% if recent.shown == 0 %}
+          <div class="muted empty-active-queue">No active tasks. Recent completed and cancelled tasks are in history below.</div>
+        {% endif %}
+
+        <details class="history-details">
+          <summary>Completed / cancelled history</summary>
+          <div class="queue-table history-table">
+            <div class="queue-row queue-head">
+              <div>ID</div>
+              <div>Status</div>
+              <div>Model</div>
+              <div>Scene</div>
+              <div>Prompt</div>
+              <div>Ready</div>
+            </div>
+            {% for task in queue_tasks %}
+              {% if task.status in ["completed", "cancelled"] %}
+                {{ queue_task_row(task, "history-row") }}
+              {% endif %}
+            {% endfor %}
+          </div>
+        </details>
+      {% else %}
+        <div class="muted">No queued tasks yet.</div>
+      {% endif %}
+      </section>
+    </section>
+
+  </main>
+
+  <div class="paid-confirm-modal" data-paid-confirm-modal hidden>
+    <div class="paid-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="paid-confirm-title">
+      <h2 id="paid-confirm-title">This will start a paid generation. Continue?</h2>
+            <div class="actions">
+        <button type="button" class="paid-button" data-paid-confirm-ok>OK</button>
+        <button type="button" class="secondary-button" data-paid-confirm-cancel>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const tabStorageKey = "seedance_gui_active_tab_v1";
+      const buttons = Array.from(document.querySelectorAll(".tab-button"));
+      const panels = Array.from(document.querySelectorAll(".tab-panel"));
+
+      function activateTab(tabName) {
+        const targetName = panels.some(function (panel) {
+          return panel.dataset.tabPanel === tabName;
+        }) ? tabName : "project-settings";
+
+        for (const button of buttons) {
+          button.classList.toggle("active", button.dataset.tabTarget === targetName);
+        }
+
+        for (const panel of panels) {
+          panel.classList.toggle("active", panel.dataset.tabPanel === targetName);
+        }
+
+        localStorage.setItem(tabStorageKey, targetName);
+      }
+
+      window.seedanceActivateTab = activateTab;
+
+      for (const button of buttons) {
+        button.addEventListener("click", function () {
+          activateTab(button.dataset.tabTarget);
+        });
+      }
+
+      activateTab(localStorage.getItem(tabStorageKey) || "project-settings");
+    });
+  </script>
+
+  <script>
+    document.addEventListener("click", async function (event) {
+      const link = event.target.closest(".open-path-link");
+      if (!link) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const pathValue = link.dataset.openPath;
+      if (!pathValue) {
+        return;
+      }
+
+      const oldText = link.textContent;
+      link.textContent = "Opening...";
+
+      try {
+        await fetch("/open-path?path=" + encodeURIComponent(pathValue), {
+          method: "GET",
+          cache: "no-store"
+        });
+        link.textContent = "Opened";
+        setTimeout(function () {
+          link.textContent = oldText;
+        }, 1200);
+      } catch (error) {
+        link.textContent = "Open failed";
+        setTimeout(function () {
+          link.textContent = oldText;
+        }, 1800);
+      }
+    });
+  </script>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.querySelector(".single-generation-form");
+      if (!form) {
+        return;
+      }
+
+      const promptField = form.elements.prompt;
+      const nameField = form.elements.generation_name;
+      const fileInput = form.querySelector("[data-reference-files]");
+      const dropzone = form.querySelector("[data-single-dropzone]");
+      const refsList = form.querySelector("[data-attached-refs]");
+      const existingInputs = form.querySelector("[data-existing-reference-inputs]");
+      const tokenMenu = form.querySelector("[data-ref-token-menu]");
+      const attachedFiles = [];
+      const existingRefs = [];
+
+      function mediaTypeForName(name) {
+        const suffix = String(name || "").toLowerCase().split(".").pop();
+        if (["png", "jpg", "jpeg", "webp"].includes(suffix)) {
+          return "image";
+        }
+        if (["mp4", "mov", "webm", "mkv"].includes(suffix)) {
+          return "video";
+        }
+        if (["mp3", "wav", "m4a", "aac", "ogg", "flac"].includes(suffix)) {
+          return "audio";
+        }
+        return "unsupported";
+      }
+
+      function syncFileInput() {
+        const transfer = new DataTransfer();
+        for (const file of attachedFiles) {
+          transfer.items.add(file);
+        }
+        fileInput.files = transfer.files;
+      }
+
+      function syncExistingInputs() {
+        existingInputs.innerHTML = "";
+        for (const ref of existingRefs) {
+          if (!ref.local_path) {
+            continue;
+          }
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "existing_reference_paths";
+          input.value = ref.local_path;
+          existingInputs.appendChild(input);
+        }
+      }
+
+      function currentRefs() {
+        const uploaded = attachedFiles.map(function (file, index) {
+          return {
+            kind: "file",
+            index: index,
+            filename: file.name,
+            media_type: mediaTypeForName(file.name),
+            preview_url: URL.createObjectURL(file)
+          };
+        });
+        const existing = existingRefs.map(function (ref, index) {
+          return {
+            kind: "existing",
+            index: index,
+            filename: ref.filename || ref.original_filename || "reference",
+            media_type: ref.media_type || mediaTypeForName(ref.filename || ref.local_path),
+            preview_url: ref.preview_url || "",
+            local_path: ref.local_path || "",
+            api_warning: ref.api_warning || ""
+          };
+        });
+        return existing.concat(uploaded);
+      }
+
+      function insertToken(filename) {
+        const token = "@" + filename;
+        const start = promptField.selectionStart || promptField.value.length;
+        const end = promptField.selectionEnd || start;
+        const before = promptField.value.slice(0, start);
+        const after = promptField.value.slice(end);
+        const prefix = before.endsWith("@") ? before.slice(0, -1) : before;
+        const spacer = prefix && !/\s$/.test(prefix) ? " " : "";
+        promptField.value = prefix + spacer + token + " " + after;
+        promptField.focus();
+        const caret = (prefix + spacer + token + " ").length;
+        promptField.setSelectionRange(caret, caret);
+        hideTokenMenu();
+      }
+
+      function renderRefs() {
+        const refs = currentRefs();
+        refsList.innerHTML = "";
+        if (!refs.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted empty-refs";
+          empty.textContent = "No references attached yet.";
+          refsList.appendChild(empty);
+          hideTokenMenu();
+          return;
+        }
+
+        for (const ref of refs) {
+          const card = document.createElement("div");
+          card.className = "ref-card";
+          card.tabIndex = 0;
+          card.title = "Insert @" + ref.filename;
+
+          if (ref.media_type === "image" && ref.preview_url) {
+            const image = document.createElement("img");
+            image.src = ref.preview_url;
+            image.alt = ref.filename;
+            card.appendChild(image);
+          } else {
+            const badge = document.createElement("span");
+            badge.className = "media-badge";
+            badge.textContent = ref.media_type;
+            card.appendChild(badge);
+          }
+
+          const name = document.createElement("span");
+          name.textContent = ref.filename;
+          card.appendChild(name);
+
+          if (ref.media_type !== "image") {
+            const warning = document.createElement("span");
+            warning.className = "ref-warning";
+            warning.textContent = "Stored in history; not sent to API yet";
+            card.appendChild(warning);
+          }
+
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "Remove";
+          remove.addEventListener("click", function (event) {
+            event.stopPropagation();
+            if (ref.kind === "file") {
+              attachedFiles.splice(ref.index, 1);
+              syncFileInput();
+            } else {
+              existingRefs.splice(ref.index, 1);
+              syncExistingInputs();
+            }
+            renderRefs();
+          });
+
+          card.addEventListener("click", function () {
+            insertToken(ref.filename);
+          });
+          card.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              insertToken(ref.filename);
+            }
+          });
+
+          card.appendChild(remove);
+          refsList.appendChild(card);
+        }
+      }
+
+      function addFiles(files) {
+        for (const file of Array.from(files || [])) {
+          if (mediaTypeForName(file.name) === "unsupported") {
+            continue;
+          }
+          attachedFiles.push(file);
+        }
+        syncFileInput();
+        renderRefs();
+      }
+
+      function hideTokenMenu() {
+        tokenMenu.hidden = true;
+        tokenMenu.innerHTML = "";
+      }
+
+      function showTokenMenu() {
+        const refs = currentRefs();
+        tokenMenu.innerHTML = "";
+        if (!refs.length) {
+          hideTokenMenu();
+          return;
+        }
+
+        for (const ref of refs) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "ref-token-option";
+          option.textContent = "@" + ref.filename;
+          option.addEventListener("click", function () {
+            insertToken(ref.filename);
+          });
+          tokenMenu.appendChild(option);
+        }
+        tokenMenu.hidden = false;
+      }
+
+      function maybeShowTokenMenu() {
+        const caret = promptField.selectionStart || 0;
+        if (promptField.value.slice(Math.max(0, caret - 1), caret) === "@") {
+          showTokenMenu();
+        } else {
+          hideTokenMenu();
+        }
+      }
+
+      fileInput.addEventListener("change", function () {
+        addFiles(fileInput.files);
+      });
+
+      for (const eventName of ["dragenter", "dragover"]) {
+        dropzone.addEventListener(eventName, function (event) {
+          event.preventDefault();
+          dropzone.classList.add("drag-over");
+        });
+      }
+
+      for (const eventName of ["dragleave", "drop"]) {
+        dropzone.addEventListener(eventName, function () {
+          dropzone.classList.remove("drag-over");
+        });
+      }
+
+      dropzone.addEventListener("drop", function (event) {
+        event.preventDefault();
+        addFiles(event.dataTransfer.files);
+      });
+
+      promptField.addEventListener("keyup", maybeShowTokenMenu);
+      promptField.addEventListener("click", hideTokenMenu);
+
+      function applyHistoryItem(item) {
+        nameField.value = item.name || "";
+        promptField.value = item.prompt || "";
+        form.elements.model.value = item.model || "seedance-2.0";
+        form.elements.duration.value = item.duration || "4";
+        form.elements.resolution.value = item.resolution || "480p";
+        form.elements.aspect_ratio.value = item.aspect_ratio || "16:9";
+        form.elements.seed.value = item.seed ?? -1;
+        form.elements.generate_audio.checked = Boolean(item.generate_audio);
+        form.elements.return_last_frame.checked = Boolean(item.return_last_frame);
+        attachedFiles.splice(0, attachedFiles.length);
+        existingRefs.splice(0, existingRefs.length);
+
+        for (const ref of item.refs || []) {
+          if (ref.local_path && ref.exists !== false) {
+            existingRefs.push(ref);
+          }
+        }
+
+        syncFileInput();
+        syncExistingInputs();
+        renderRefs();
+      }
+
+      function readHistoryItem(button) {
+        const card = button.closest(".single-history-card");
+        const dataNode = card ? card.querySelector(".history-item-data") : null;
+        if (!dataNode) {
+          return null;
+        }
+        try {
+          return JSON.parse(dataNode.textContent);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      async function confirmPaidGeneration() {
+        const modal = document.querySelector("[data-paid-confirm-modal]");
+        const ok = modal.querySelector("[data-paid-confirm-ok]");
+        const cancel = modal.querySelector("[data-paid-confirm-cancel]");
+
+        modal.hidden = false;
+        return new Promise(function (resolve) {
+          function cleanup(result) {
+            modal.hidden = true;
+            ok.removeEventListener("click", onOk);
+            cancel.removeEventListener("click", onCancel);
+            resolve(result);
+          }
+
+          function onOk() {
+            cleanup(true);
+          }
+
+          function onCancel() {
+            cleanup(false);
+          }
+
+          ok.addEventListener("click", onOk);
+          cancel.addEventListener("click", onCancel);
+        });
+      }
+
+      document.addEventListener("click", async function (event) {
+        const editButton = event.target.closest(".history-edit-button");
+        const regenerateButton = event.target.closest(".history-regenerate-button");
+
+        if (editButton) {
+          const item = readHistoryItem(editButton);
+          if (item) {
+            applyHistoryItem(item);
+            window.seedanceActivateTab("single-generation");
+            promptField.focus();
+          }
+          return;
+        }
+
+        if (regenerateButton) {
+          const item = readHistoryItem(regenerateButton);
+          if (!item) {
+            return;
+          }
+          applyHistoryItem(item);
+          window.seedanceActivateTab("single-generation");
+          if (await confirmPaidGeneration()) {
+            form.requestSubmit();
+          }
+        }
+      });
+
+      form.addEventListener("submit", async function (event) {
+        const submitter = event.submitter;
+        if (!submitter || !submitter.matches("[data-paid-single-submit]")) {
+          return;
+        }
+        event.preventDefault();
+        if (await confirmPaidGeneration()) {
+          submitter.disabled = true;
+          form.submit();
+        }
+      });
+
+      renderRefs();
+    });
+  </script>
+
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const storageKey = "seedance_gui_form_preferences_v1";
+      const forms = Array.from(document.querySelectorAll(".generation-form"));
+
+      if (!forms.length) {
+        return;
+      }
+
+      const fieldNames = [
+        "model",
+        "duration",
+        "resolution",
+        "aspect_ratio",
+        "seed",
+        "generate_audio",
+        "return_last_frame"
+      ];
+
+      function loadPrefs() {
+        try {
+          return JSON.parse(localStorage.getItem(storageKey) || "{}");
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function savePrefs() {
+        const prefs = {};
+        const form = forms.find(function (candidate) {
+          return candidate.matches(":focus-within");
+        }) || forms[0];
+
+        for (const name of fieldNames) {
+          const field = form.elements[name];
+
+          if (!field) {
+            continue;
+          }
+
+          if (field.type === "checkbox") {
+            prefs[name] = field.checked;
+          } else {
+            prefs[name] = field.value;
+          }
+        }
+
+        localStorage.setItem(storageKey, JSON.stringify(prefs));
+      }
+
+      function applyPrefs() {
+        const prefs = loadPrefs();
+
+        for (const form of forms) {
+          for (const name of fieldNames) {
+            if (!(name in prefs)) {
+              continue;
+            }
+
+            const field = form.elements[name];
+
+            if (!field) {
+              continue;
+            }
+
+            if (field.type === "checkbox") {
+              field.checked = Boolean(prefs[name]);
+            } else {
+              field.value = prefs[name];
+            }
+          }
+        }
+      }
+
+      applyPrefs();
+
+      for (const form of forms) {
+        for (const name of fieldNames) {
+          const field = form.elements[name];
+
+          if (!field) {
+            continue;
+          }
+
+          field.addEventListener("change", savePrefs);
+          field.addEventListener("input", savePrefs);
+        }
+
+        form.addEventListener("submit", savePrefs);
+      }
+    });
+  </script>
+
+</body>
+</html>

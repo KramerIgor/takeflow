@@ -1,0 +1,280 @@
+# PROJECT_STATE.md — Seedance current state
+
+Updated after product UI cleanup.
+
+## Completed
+
+Stages 0–11 are complete.
+
+Stage 7 result structure is fixed:
+
+    Project/videos/
+    Project/runs/
+
+The active project is stored in:
+
+    data/active_project.json
+
+Queued tasks store project_name and project_dir at Add to Queue time.
+
+## Stage 8 current state
+
+Stage 8 is complete as a working baseline.
+
+Done:
+
+- Universal last-frame extractor exists in app/last_frame.py.
+- Queue worker can save API-returned last frame.
+- Real paid test with return_last_frame=true completed.
+- Segmind returned last frame at video.last_frame_url.
+- Worker saved last frame as runs/<take>/last_frame.png.
+- ffmpeg is installed but should be fallback only.
+- GUI now uses a product-facing tab layout:
+  - Projects
+  - Single Generation
+  - History
+  - Queue
+- The tab-based UI is presentation-only at this point.
+- Backend routes/endpoints are unchanged.
+- Worker, DB and Segmind API client are unchanged.
+- Continuation Chain is no longer a primary tab; continuation remains a backend/queue capability.
+- Manual Continue from previous take remains available only as a secondary/debug fallback inside Queue row Debug / files.
+- Backend queue chaining dry-run passed:
+  RESULT=STAGE8_BACKEND_CHAINING_DRY_RUN_OK
+- Real paid continuation test passed for task #26.
+- Backend behavior confirmed: parent last_frame.png is uploaded through existing upload_asset and appended to child reference_images.
+- first_frame_url is not the default workflow.
+- Chain Builder UI is implemented in the Continuation Chain tab.
+- Chain Builder route:
+  POST /add-continuation-chain
+- Chain Builder creates queued tasks only. It does not start paid generation.
+- GUI smoke-test passed:
+  RESULT=STAGE8_CHAIN_BUILDER_GUI_SMOKE_TEST_OK
+- Test chain was cancelled safely:
+  tasks #27, #28, #29 cancelled
+  queued_count=0
+
+Confirmed run:
+
+    Task id: 25
+    Request id: 1d22c000af50a8597ad64748bb87287c
+    Run dir: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001
+    Final video: /mnt/c/AI_OUTPUT/Psailor_kun/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000001.mp4
+    Last frame: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001/last_frame.png
+    API field: video.last_frame_url
+
+Confirmed continuation run:
+
+    Parent task id: 25
+    Child continuation task id: 26
+    Child status: completed
+    Child output: /mnt/c/AI_OUTPUT/Psailor_kun/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000002.mp4
+    Child run dir: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002
+    Child last frame: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002/last_frame.png
+
+Stable Stage 8 tab UI backup:
+
+    /home/iokramer/seedance_gui_backups/stable_stage8_tabs_ui_20260620_223731
+
+Backup before backend chaining:
+
+    /home/iokramer/seedance_gui_backups/pre_stage8_backend_chaining_20260620_225337
+
+Stable Stage 8 complete backup:
+
+    /home/iokramer/seedance_gui_backups/stable_stage8_complete_20260620_235818
+
+## Stage 9 current state
+
+Stage 9 is complete as a working baseline.
+
+Done:
+
+- Batch CSV Import section is implemented in the Queue tab.
+- Batch import route:
+  POST /batch-import
+- CSV import requires a header row with:
+  episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths
+- Preview mode parses and validates the CSV without creating tasks.
+- Confirm mode parses and validates the CSV again, then creates queued tasks only if there are zero errors.
+- One CSV row creates one queued task.
+- reference_paths are split by semicolon.
+- reference_paths must point to existing image files with supported suffixes.
+- Batch import creates queued tasks only. It does not start paid generation.
+- Imported tasks use return_last_frame=True.
+- Imported task params include batch_import_id and batch_row_number.
+- first_frame_url is not used by the batch import path.
+- Excel import and Markdown import are not implemented in Stage 9.
+
+Stage 9 dry-run passed:
+
+    RESULT=STAGE9_BATCH_IMPORT_DRY_RUN_OK
+
+Manual Stage 9 GUI smoke-tests passed after Stage 11 UI polish:
+
+    RESULT=STAGE9_CSV_PREVIEW_SMOKE_TEST_DONE
+    RESULT=STAGE9_CSV_CONFIRM_AND_CANCEL_SMOKE_TEST_DONE
+
+Smoke-test result:
+
+- Preview showed 2 valid rows and created zero queued tasks.
+- Confirm created queued tasks #30 and #31.
+- Test tasks #30 and #31 were immediately cancelled.
+- Queue safety after cancel:
+  queued_after_cancel=0
+- Paid generation did not start.
+
+Stage 8 regression checks still pass:
+
+    RESULT=STAGE8_BACKEND_CHAINING_DRY_RUN_OK
+    RESULT=STAGE8_TABBED_UI_OK
+
+Stage 9 pre-edit backup:
+
+    /home/iokramer/seedance_gui_backups/pre_stage9_csv_import_20260621_000628
+
+Stable Stage 9 complete backup:
+
+    /home/iokramer/seedance_gui_backups/stable_stage9_complete_20260621_001912
+
+## Stage 10 current state
+
+Stage 10 is complete as a working baseline.
+
+Done:
+
+- Night Mode Safety Preview section is implemented in the Queue tab.
+- Night mode preview route:
+  POST /night-mode-preview
+- Preview mode builds a queue run plan only.
+- Preview mode does not start the queue.
+- Preview mode does not call Segmind.
+- Preview mode does not create, update or delete queued tasks.
+- Controls include max_tasks and stop_on_consecutive_errors.
+- Preview report shows queued count, selected count, dependent continuation task count and parent-blocked count.
+- Dependent continuation chains are kept sequential; no parallel dependent continuation chains are planned.
+- Existing paid queue buttons still require explicit user confirmation.
+
+Stage 10 dry-run passed:
+
+    RESULT=STAGE10_NIGHT_MODE_DRY_RUN_OK
+
+Regression checks still pass:
+
+    RESULT=STAGE9_BATCH_IMPORT_DRY_RUN_OK
+    RESULT=STAGE8_BACKEND_CHAINING_DRY_RUN_OK
+    RESULT=STAGE8_TABBED_UI_OK
+
+Stage 10 pre-edit backup:
+
+    /home/iokramer/seedance_gui_backups/pre_stage10_night_mode_controls_20260621_002107
+
+Stable Stage 10 complete backup:
+
+    /home/iokramer/seedance_gui_backups/stable_stage10_complete_20260621_003156
+
+## Stage 11 current state
+
+Stage 11 is superseded by the product UI cleanup baseline.
+
+Done:
+
+- Practical startup script:
+  scripts/start_gui.sh
+- Default GUI URL remains:
+  http://127.0.0.1:7860
+- Startup script launches Uvicorn only.
+- Startup script does not start queue processing by itself.
+- Final safe diagnostics script:
+  scripts/check_stage11_final_diagnostics.py
+- Final diagnostics run compile checks plus Stage 10, Stage 9 and Stage 8 dry-run checks.
+- Final diagnostics do not start paid generation.
+- README includes startup, diagnostics and backup exclusion instructions.
+
+Stage 11 final diagnostics passed:
+
+    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+
+Stage 11 pre-edit backup:
+
+    /home/iokramer/seedance_gui_backups/pre_stage11_packaging_20260621_003507
+
+Stable Stage 11 complete backup:
+
+    /home/iokramer/seedance_gui_backups/stable_stage11_complete_20260621_003956
+
+## Stage 11 UI polish baseline
+
+Morning UI polish after Stage 11 keeps generation logic unchanged.
+
+Done:
+
+- Header status now presents the current baseline as:
+  Seedance
+- Queue tab is simplified for normal use; CSV import and Night Mode Safety Preview are advanced sections.
+- Paid queue buttons are visually separated and labeled with paid.
+- CSV and Night Mode preview actions are styled as safe preview actions.
+- Batch CSV Import includes the required columns and semicolon-separated reference_paths hint.
+- Night Mode Safety Preview explicitly says it is preview only and does not run the queue.
+- Queue / History shows active and recent tasks first, with completed/cancelled history collapsed.
+- No tasks are deleted and no task statuses are changed by this UI grouping.
+
+Safe UI polish check:
+
+    RESULT=STAGE11_UI_POLISH_OK
+
+Stable backup after Stage 11 UI polish and Stage 9 smoke-tests:
+
+    /home/iokramer/seedance_gui_backups/stable_stage11_ui_polished_and_smoke_tested_20260621_093904
+
+## Next step
+
+Current stage result:
+
+    Stage 11 complete as working baseline.
+
+Main Stage 8 workflow direction:
+
+    User prepares a continuation chain in the queue.
+    Worker runs tasks sequentially.
+    Child task waits for parent completion.
+    Worker finds parent runs/<take>/last_frame.png.
+    Worker uploads that file with existing upload_asset.
+    Worker appends uploaded URL to child reference_images.
+    Worker submits the child generation.
+
+Do not redo API connection work.
+
+Do not continue with backend-only console scripts unless needed for diagnostics.
+
+## Known correction
+
+For cheap/fast API contract tests use seedance-2.0-fast.
+
+The previous paid last-frame test used seedance-2.0, which worked but was slower and more expensive than necessary for a contract test.
+
+## Corrected continuation workflow
+
+The user corrected Stage 8 workflow.
+
+The previous video's last_frame.png must be used as one of the next generation reference_images.
+
+Do not use first_frame_url as the default continuation workflow.
+
+Correct flow:
+
+    previous runs/<take>/last_frame.png
+    -> upload_asset
+    -> append uploaded URL to reference_images
+    -> submit next generation
+
+Workflow code name:
+
+    continuation_mode=last_frame_as_reference
+
+first_frame_url is parked as a possible optional future mode only.
+
+## Parked items
+
+- Parallel queues.
+- Cost limits.

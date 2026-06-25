@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.db import create_task, get_task, init_db, list_tasks, update_task_fields
+from app.db import create_task, delete_task, get_task, init_db, list_tasks, update_task_fields, update_task_payload
 from app.queue_worker import process_next_queued_task_real, process_queue_loop, process_queued_task_real_by_id, _save_api_last_frame_if_present
 from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL
 from app.segmind_client import SegmindClient
@@ -71,6 +71,8 @@ SINGLE_GENERATION_MODES = {"single_generation_paid", "single_generation_regenera
 
 APP_TITLE = "Seedance"
 APP_SUBTITLE = "Local video generation workspace"
+BALANCE_CACHE_SECONDS = 60
+_segmind_balance_cache: dict[str, object] = {"expires_at": 0.0, "context": None}
 
 
 def env_key_is_set() -> bool:
@@ -126,6 +128,60 @@ def cost_info_for_generation(summary: dict | None, *, model: str | None, params:
 
 def cost_label_from_generation(summary: dict | None, *, model: str | None, params: dict | None, refs: list[dict] | None) -> str | None:
     return cost_label(cost_info_for_generation(summary, model=model, params=params, refs=refs))
+
+
+def format_credit_amount(value: object) -> str | None:
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    return f"${amount:,.4f}"
+
+
+def segmind_balance_context() -> dict:
+    if not env_key_is_set():
+        return {
+            "segmind_balance_label": "Balance",
+            "segmind_balance_value": "Unavailable",
+            "segmind_balance_hint": "Set an API key in Projects to check Segmind credits.",
+            "segmind_balance_available": False,
+        }
+
+    now = time.time()
+    cached = _segmind_balance_cache.get("context")
+    if cached and now < float(_segmind_balance_cache.get("expires_at") or 0):
+        return dict(cached)
+
+    context = {
+        "segmind_balance_label": "Balance",
+        "segmind_balance_value": "Unavailable",
+        "segmind_balance_hint": "Could not read Segmind credits from https://api.segmind.com/v1/get-user-credits.",
+        "segmind_balance_available": False,
+    }
+
+    try:
+        response = SegmindClient(timeout=4.0).get_user_credits()
+        data = response.data if isinstance(response.data, dict) else {}
+        credits_label = format_credit_amount(data.get("credits"))
+        free_credits_label = format_credit_amount(data.get("free-credits"))
+        if response.ok and credits_label:
+            context = {
+                "segmind_balance_label": "Balance",
+                "segmind_balance_value": credits_label,
+                "segmind_balance_hint": f"Segmind credits: {credits_label}; free credits: {free_credits_label or '$0.0000'}.",
+                "segmind_balance_available": True,
+            }
+        elif response.status_code == 401:
+            context["segmind_balance_hint"] = "Segmind rejected the API key while reading credits."
+        elif response.status_code:
+            context["segmind_balance_hint"] = f"Segmind credits endpoint returned HTTP {response.status_code}."
+    except Exception as exc:
+        context["segmind_balance_hint"] = f"Segmind credits check failed: {type(exc).__name__}."
+
+    _segmind_balance_cache["context"] = dict(context)
+    _segmind_balance_cache["expires_at"] = now + BALANCE_CACHE_SECONDS
+    return context
 
 
 def load_summary_for_run(run_dir: str | None) -> dict:
@@ -370,6 +426,8 @@ def queue_tasks_for_view():
         task["is_batch_import"] = bool(params.get("batch_import_id") or params.get("batch_row_number"))
         task["refs_view"] = refs_view
         task["cost_label"] = cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs_view)
+        task["can_edit_in_queue"] = task.get("status") == "queued"
+        task["can_remove_from_queue"] = task.get("status") == "queued" and not task.get("request_id") and not task.get("output_path")
         task.update(last_frame_view_for_task(task))
 
     tasks = sorted(all_tasks, key=lambda item: int(item.get("id") or 0), reverse=True)[:80]
@@ -611,9 +669,7 @@ def base_context(
         "app_subtitle": APP_SUBTITLE,
         "api_key_set": env_key_is_set(),
         "api_base": SEGMIND_API_BASE,
-        "segmind_balance_label": "Balance",
-        "segmind_balance_value": "Unavailable",
-        "segmind_balance_hint": "No official API-key balance endpoint found yet.",
+        **segmind_balance_context(),
         "default_model": SEGMIND_MODEL,
         "model_choices": MODEL_CHOICES,
         "output_dir": str(projects_module.get_active_project_dir()),
@@ -1402,6 +1458,7 @@ async def add_to_queue(
     generate_audio: str | None = Form(None),
     return_last_frame: str | None = Form(None),
     reference_files: list[UploadFile] = File(default=[]),
+    existing_reference_paths: list[str] = Form(default=[]),
 ):
     model = normalize_model(model)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1409,7 +1466,8 @@ async def add_to_queue(
     refs_dir = queue_dir / "refs"
     queue_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="queue_upload")
+    saved_refs = safe_existing_reference_refs(existing_reference_paths)
+    saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="queue_upload"))
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
     queue_group_id = f"manual_{timestamp}_{uuid.uuid4().hex[:8]}"
@@ -1438,7 +1496,7 @@ async def add_to_queue(
         status="queued",
     )
 
-    queue_task_dir = projects_module.get_active_project_dir() / "queue_tasks" / f"task_{task_id:06d}"
+    queue_task_dir = task_project_dir / "queue_tasks" / f"task_{task_id:06d}"
     queue_task_dir.mkdir(parents=True, exist_ok=True)
 
     (queue_task_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
@@ -1464,6 +1522,97 @@ async def add_to_queue(
             message=f"Task #{task_id} added to queue. No paid generation was started.",
             last_queue_add=last_queue_add,
         ),
+    )
+
+
+
+@app.post("/update-queued-task/{task_id}", response_class=HTMLResponse)
+async def update_queued_task(
+    task_id: int,
+    request: Request,
+    prompt: str = Form(""),
+    model: str = Form("seedance-2.0"),
+    duration: int = Form(4),
+    resolution: str = Form("480p"),
+    aspect_ratio: str = Form("16:9"),
+    episode_name: str = Form("Episode_01"),
+    scene_name: str = Form("Scene_001"),
+    seed: int = Form(-1),
+    generate_audio: str | None = Form(None),
+    return_last_frame: str | None = Form(None),
+    reference_files: list[UploadFile] = File(default=[]),
+    existing_reference_paths: list[str] = Form(default=[]),
+):
+    task = get_task(task_id)
+    if not task:
+        message = f"Queue item #{task_id} was not found."
+        return templates.TemplateResponse("index.html", base_context(request, message=message), status_code=404)
+
+    if task.get("status") != "queued":
+        message = f"Queue item #{task_id} is already {task.get('status')} and cannot be edited in queue."
+        return templates.TemplateResponse("index.html", base_context(request, message=message))
+
+    model = normalize_model(model)
+    task_project_dir = Path((task.get("params") or {}).get("project_dir") or projects_module.get_active_project_dir())
+    refs_dir = task_project_dir / "queue_tasks" / f"task_{task_id:06d}" / "refs"
+    refs_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_refs = safe_existing_reference_refs(existing_reference_paths)
+    saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="queue_edit_upload"))
+    prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
+
+    old_params = task.get("params") or {}
+    params = build_params(
+        model=model,
+        prompt=prompt,
+        saved_refs=saved_refs,
+        duration=duration,
+        resolution=resolution,
+        aspect_ratio=aspect_ratio,
+        episode_name=episode_name,
+        scene_name=scene_name,
+        seed=seed,
+        generate_audio=generate_audio,
+        return_last_frame=return_last_frame,
+        mode=old_params.get("mode") or "queued_no_generation_yet",
+    )
+    for key in ("project_dir", "queue_group_id", "batch_import_id", "batch_row_number", "continuation_chain_id", "continuation_index"):
+        if key in old_params:
+            params[key] = old_params[key]
+
+    update_task_payload(task_id, model=model, prompt=prompt, params=params, refs=saved_refs)
+
+    queue_task_dir = task_project_dir / "queue_tasks" / f"task_{task_id:06d}"
+    queue_task_dir.mkdir(parents=True, exist_ok=True)
+    (queue_task_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
+    (queue_task_dir / "params.json").write_text(json.dumps(params, indent=2, ensure_ascii=False), encoding="utf-8")
+    (queue_task_dir / "refs.json").write_text(json.dumps(saved_refs, indent=2, ensure_ascii=False), encoding="utf-8")
+    (queue_task_dir / "task_id.txt").write_text(str(task_id), encoding="utf-8")
+
+    return templates.TemplateResponse(
+        "index.html",
+        base_context(
+            request,
+            message=f"Queue item #{task_id} was updated in place. No paid generation was started.",
+        ),
+    )
+
+
+@app.post("/remove-queued-task/{task_id}", response_class=HTMLResponse)
+def remove_queued_task(task_id: int, request: Request):
+    task = get_task(task_id)
+    if not task:
+        message = f"Queue item #{task_id} was not found."
+        return templates.TemplateResponse("index.html", base_context(request, message=message), status_code=404)
+
+    if task.get("status") != "queued" or task.get("request_id") or task.get("output_path"):
+        message = f"Queue item #{task_id} is not a removable queued item."
+        return templates.TemplateResponse("index.html", base_context(request, message=message))
+
+    delete_task(task_id)
+    return templates.TemplateResponse(
+        "index.html",
+        base_context(request, message=f"Queue item #{task_id} was removed from the queue. Generated files were not touched."),
     )
 
 

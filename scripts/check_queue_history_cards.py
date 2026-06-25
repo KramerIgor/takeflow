@@ -28,6 +28,9 @@ def main():
         expect("queue_history_json_present", html.count("history-item-data") >= len(tasks[:1])),
         expect("balance_in_topbar", "top-balance" in html and "Balance" in html),
         expect("technical_id_debug_only", "Technical task ID" in html),
+        expect("queue_edit_button", "queue-edit-button" in html),
+        expect("remove_queue_route", "/remove-queued-task/" in html),
+        expect("update_queue_route_js", "/update-queued-task/" in html),
     ]
 
     if all(checks):

@@ -88,6 +88,18 @@ class SegmindClient:
         fake_request_id = "00000000-0000-0000-0000-000000000000"
         return self.get_request_status(fake_request_id)
 
+    def get_user_credits(self) -> SegmindResponse:
+        url = "https://api.segmind.com/v1/get-user-credits"
+        headers = {
+            "x-api-key": self.api_key,
+            "accept": "application/json",
+        }
+
+        with httpx.Client(timeout=min(self.timeout, 8.0)) as client:
+            response = client.get(url, headers=headers)
+
+        return self._parse_response(response)
+
 
     def upload_asset(self, file_path: str | Path) -> SegmindResponse:
         path = Path(file_path)

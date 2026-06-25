@@ -145,6 +145,8 @@
         </div>
 
         {% if form_kind != "single" %}
+          <input type="hidden" name="edit_queue_task_id" value="" data-edit-queue-task-id>
+          <div data-queue-existing-reference-inputs></div>
           <div class="attached-refs-shell queue-refs-shell" data-queue-dropzone>
             <div class="attached-refs-header">
               <span>Attached references</span>
@@ -168,8 +170,10 @@
 
         <div class="actions">
           {% if form_kind == "queue" %}
-            <button type="submit" formaction="/add-to-queue">Add to Queue</button>
-            <button type="submit" formaction="/draft-task">Save Draft Task</button>
+            <button type="submit" formaction="/add-to-queue" data-add-queue-button>Add to Queue</button>
+            <button type="submit" formaction="/draft-task" data-draft-queue-button>Save Draft Task</button>
+            <button type="submit" class="secondary-button" formaction="/add-to-queue" data-update-queue-button hidden>Update Queue Item</button>
+            <button type="button" class="secondary-button" data-cancel-queue-edit hidden>Cancel edit</button>
             <span class="hint">Queue-first workflow: add tasks first, then run the queue.</span>
           {% elif form_kind == "single" %}
             <button
@@ -259,8 +263,16 @@
           {% endif %}
 
           <div class="actions history-actions">
-            <button type="button" class="secondary-button history-edit-button">Edit prompt</button>
-            <button type="button" class="paid-button history-regenerate-button">Regenerate</button>
+            <button type="button" class="secondary-button history-edit-button" data-i18n="edit_prompt">Edit prompt</button>
+            {% if task.can_edit_in_queue %}
+              <button type="button" class="secondary-button queue-edit-button" data-i18n="edit_in_queue">Edit in queue</button>
+            {% endif %}
+            <button type="button" class="paid-button history-regenerate-button" data-i18n="regenerate">Regenerate</button>
+            {% if task.can_remove_from_queue %}
+              <form method="post" action="/remove-queued-task/{{ task.id }}" class="inline-action-form">
+                <button type="submit" class="small-action-button danger-button" data-i18n="remove_from_queue" onclick="return confirm('Remove this queued item? No generated files will be touched.');">Remove from queue</button>
+              </form>
+            {% endif %}
           </div>
 
           <details class="queue-debug">
@@ -308,7 +320,9 @@
               "seed": task.params.seed,
               "generate_audio": task.params.generate_audio,
               "return_last_frame": task.params.return_last_frame,
-              "refs": task.refs_view
+              "refs": task.refs_view,
+              "queue_task_id": task.id,
+              "can_edit_in_queue": task.can_edit_in_queue
             } | tojson }}
           </script>
         </div>
@@ -327,7 +341,7 @@
         </div>
         <div class="top-balance" title="{{ segmind_balance_hint }}">
           <span data-i18n="balance_label">{{ segmind_balance_label }}</span>
-          <strong data-i18n="balance_unavailable">{{ segmind_balance_value }}</strong>
+          <strong{% if not segmind_balance_available %} data-i18n="balance_unavailable"{% endif %}>{{ segmind_balance_value }}</strong>
         </div>
       </div>
     </section>
@@ -1003,7 +1017,11 @@
           queue_history: "Очередь / история",
           queue_history_hint: "История очереди использует такие же карточки, как одиночная история. Редактирование или перегенерация отправляет один выбранный элемент в одиночную генерацию.",
           balance_label: "Баланс",
-          balance_unavailable: "Недоступен"
+          balance_unavailable: "Недоступен",
+          edit_prompt: "Редактировать промпт",
+          edit_in_queue: "Редактировать в очереди",
+          regenerate: "Перегенерировать",
+          remove_from_queue: "Удалить из очереди"
         },
         en: {}
       };
@@ -1283,6 +1301,50 @@
         renderRefs();
       }
 
+      function setQueueEditMode(taskId) {
+        editTaskInput.value = taskId || "";
+        updateQueueButton.hidden = !taskId;
+        cancelEditButton.hidden = !taskId;
+        addQueueButton.hidden = Boolean(taskId);
+        draftQueueButton.hidden = Boolean(taskId);
+        if (taskId) {
+          updateQueueButton.formAction = "/update-queued-task/" + encodeURIComponent(taskId);
+        } else {
+          updateQueueButton.formAction = "/add-to-queue";
+        }
+      }
+
+      function clearQueueEditMode() {
+        setQueueEditMode("");
+        attachedFiles.splice(0, attachedFiles.length);
+        existingRefs.splice(0, existingRefs.length);
+        syncFileInput();
+        syncExistingInputs();
+        renderRefs();
+      }
+
+      function applyQueueItem(item) {
+        form.elements.prompt.value = item.prompt || "";
+        form.elements.model.value = item.model || "seedance-2.0";
+        form.elements.duration.value = item.duration || "4";
+        form.elements.resolution.value = item.resolution || "480p";
+        form.elements.aspect_ratio.value = item.aspect_ratio || "16:9";
+        form.elements.seed.value = item.seed ?? -1;
+        form.elements.generate_audio.checked = Boolean(item.generate_audio);
+        form.elements.return_last_frame.checked = Boolean(item.return_last_frame);
+        attachedFiles.splice(0, attachedFiles.length);
+        existingRefs.splice(0, existingRefs.length);
+        for (const ref of item.refs || []) {
+          if (ref.local_path && ref.exists !== false) {
+            existingRefs.push(ref);
+          }
+        }
+        syncFileInput();
+        syncExistingInputs();
+        renderRefs();
+        setQueueEditMode(item.queue_task_id || "");
+      }
+
       function hideTokenMenu() {
         tokenMenu.hidden = true;
         tokenMenu.innerHTML = "";
@@ -1320,6 +1382,24 @@
 
       fileInput.addEventListener("change", function () {
         addFiles(fileInput.files);
+      });
+      cancelEditButton.addEventListener("click", function () {
+        clearQueueEditMode();
+      });
+      document.addEventListener("click", function (event) {
+        const editButton = event.target.closest(".queue-edit-button");
+        if (!editButton) return;
+        const card = editButton.closest(".queue-history-card");
+        const dataNode = card ? card.querySelector(".history-item-data") : null;
+        if (!dataNode) return;
+        try {
+          const item = JSON.parse(dataNode.textContent);
+          applyQueueItem(item);
+          window.seedanceActivateTab("queue-workflow");
+          form.elements.prompt.focus();
+        } catch (error) {
+          return;
+        }
       });
 
       for (const eventName of ["dragenter", "dragover"]) {
@@ -1464,7 +1544,14 @@
       const fileDropzone = form.querySelector("[data-queue-dropzone]");
       const refsList = form.querySelector("[data-queue-attached-refs]");
       const tokenMenu = form.querySelector("[data-queue-ref-token-menu]");
+      const existingInputs = form.querySelector("[data-queue-existing-reference-inputs]");
+      const editTaskInput = form.querySelector("[data-edit-queue-task-id]");
+      const addQueueButton = form.querySelector("[data-add-queue-button]");
+      const draftQueueButton = form.querySelector("[data-draft-queue-button]");
+      const updateQueueButton = form.querySelector("[data-update-queue-button]");
+      const cancelEditButton = form.querySelector("[data-cancel-queue-edit]");
       const attachedFiles = [];
+      const existingRefs = [];
 
       function mediaTypeForName(name) {
         const suffix = String(name || "").toLowerCase().split(".").pop();
@@ -1482,15 +1569,39 @@
         fileInput.files = transfer.files;
       }
 
+      function syncExistingInputs() {
+        existingInputs.innerHTML = "";
+        for (const ref of existingRefs) {
+          if (!ref.local_path) continue;
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "existing_reference_paths";
+          input.value = ref.local_path;
+          existingInputs.appendChild(input);
+        }
+      }
+
       function currentRefs() {
-        return attachedFiles.map(function (file, index) {
+        const existing = existingRefs.map(function (ref, index) {
           return {
+            kind: "existing",
+            index: index,
+            filename: ref.filename || ref.original_filename || "reference",
+            media_type: ref.media_type || mediaTypeForName(ref.filename || ref.local_path),
+            preview_url: ref.preview_url || "",
+            local_path: ref.local_path || ""
+          };
+        });
+        const uploaded = attachedFiles.map(function (file, index) {
+          return {
+            kind: "file",
             index: index,
             filename: file.name,
             media_type: mediaTypeForName(file.name),
             preview_url: URL.createObjectURL(file)
           };
         });
+        return existing.concat(uploaded);
       }
 
       function hideTokenMenu() {
@@ -1552,8 +1663,13 @@
           remove.textContent = "Remove";
           remove.addEventListener("click", function (event) {
             event.stopPropagation();
-            attachedFiles.splice(ref.index, 1);
-            syncFileInput();
+            if (ref.kind === "existing") {
+              existingRefs.splice(ref.index, 1);
+              syncExistingInputs();
+            } else {
+              attachedFiles.splice(ref.index, 1);
+              syncFileInput();
+            }
             renderRefs();
           });
           card.addEventListener("click", function () {

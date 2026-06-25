@@ -207,6 +207,8 @@ The Stage 11 baseline includes a small UI polish pass:
 - Paid queue actions are visually separated and labeled with `paid`
 - CSV and Night Mode preview actions are labeled as safe previews
 - Completed/cancelled task history is collapsed in the UI only; tasks are not deleted or changed
+- Top bar balance shows Segmind credits from the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`
+- Queue history uses History-style cards; queued/unsubmitted items can be edited in place or removed from the queue
 
 Safe UI polish check:
 

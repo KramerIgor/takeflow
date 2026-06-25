@@ -236,3 +236,36 @@ def update_task_fields(task_id: int, **fields: Any) -> None:
             values,
         )
         conn.commit()
+
+
+def update_task_payload(
+    task_id: int,
+    *,
+    model: str,
+    prompt: str,
+    params: dict[str, Any],
+    refs: list[dict[str, Any]] | None = None,
+) -> None:
+    now = utc_now()
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE generation_tasks
+            SET model = ?,
+                prompt = ?,
+                params_json = ?,
+                refs_json = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                model,
+                prompt,
+                json.dumps(params, ensure_ascii=False),
+                json.dumps(refs or [], ensure_ascii=False),
+                now,
+                task_id,
+            ),
+        )
+        conn.commit()

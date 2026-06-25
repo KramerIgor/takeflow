@@ -85,16 +85,16 @@ Current verification:
     RESULT=STAGE11_UI_POLISH_OK
     RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
 
-Next likely task:
+Current product behavior:
 
 - Per-generation cost display is implemented: prefer actual Segmind response cost fields, otherwise use official Seedance pricing estimates.
-- Account balance display remains unavailable until an official/stable API-key endpoint is found.
-- Read-only platform/cloud balance endpoint probes returned 404.
-- Top bar balance display is present but currently says `Unavailable`.
+- Top bar balance reads Segmind credits through the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`; do not print the API key or raw `.env`.
+- Dashboard billing endpoints under `cloud-api.segmind.com` require JWT cookies and are not needed for the local balance display.
 - Queue history uses card layout matching Single Generation history.
-- Queue Edit prompt/Regenerate routes users into Single Generation for one selected item.
+- Queue `Edit prompt` and `Regenerate` route users into Single Generation for one selected item.
+- Queue `Edit in queue` updates one still-queued item in place without changing its queue position.
+- Queue `Remove from queue` is available only for still-queued/unsubmitted items and does not delete generated files.
 - Queue numbering is human-readable: `Queue #N` groups and `N-M` item labels; technical task ids stay in debug details.
-- Do not scrape/private-call the dashboard without explicit approval.
 
 
 ## Current storage structure

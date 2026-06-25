@@ -190,6 +190,7 @@ Stage 11 final diagnostics passed:
 
     RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
     RESULT=COST_ESTIMATES_OK
+    RESULT=QUEUE_HISTORY_CARDS_OK
 
 Stage 11 pre-edit backup:
 
@@ -261,6 +262,11 @@ Known open item for next session:
 - User dashboard example `seedance-2.0-fast`, 4s, 480p showed about `$0.2273`; official pricing estimate is `~$0.2248`.
 - Account balance remains unavailable: read-only probes for obvious API-key balance/usage/credits endpoints on platform/cloud Segmind returned 404.
 - Do not use private dashboard endpoints for balance without explicit user approval.
+- Top bar shows balance state under the EN/RU language switch; current value is `Unavailable` because no official balance endpoint is known.
+- Queue history cards are implemented and mirror Single Generation history cards.
+- Queue item `Edit prompt` fills Single Generation with that one item's prompt/settings/refs.
+- Queue item `Regenerate` confirms the paid action and submits only that one item through Single Generation; it does not rerun the whole queue or batch.
+- Queue display numbering is derived without schema migration: groups use `queue_group_id`, `batch_import_id`, `continuation_chain_id`, or legacy task fallback. UI labels are `Queue #N` and `N-M`.
 
 
 ## Next step

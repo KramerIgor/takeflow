@@ -90,6 +90,10 @@ Next likely task:
 - Per-generation cost display is implemented: prefer actual Segmind response cost fields, otherwise use official Seedance pricing estimates.
 - Account balance display remains unavailable until an official/stable API-key endpoint is found.
 - Read-only platform/cloud balance endpoint probes returned 404.
+- Top bar balance display is present but currently says `Unavailable`.
+- Queue history uses card layout matching Single Generation history.
+- Queue Edit prompt/Regenerate routes users into Single Generation for one selected item.
+- Queue numbering is human-readable: `Queue #N` groups and `N-M` item labels; technical task ids stay in debug details.
 - Do not scrape/private-call the dashboard without explicit approval.
 
 

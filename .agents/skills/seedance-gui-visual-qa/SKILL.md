@@ -22,6 +22,7 @@ Use browser verification for UI changes. Do not trigger paid generation.
 - GUI text stays English.
 - Technical identifiers stay English.
 - Product UI cleanup is the active UX scope across Projects, Single Generation, History and Queue.
+- Queue history card parity with Single Generation history is regression-sensitive.
 - Batch CSV Import, Queue Controls, Night Mode, and continuation internals are regression-sensitive; do not change them unless the task requires it.
 - `Regenerate` must warn: `This will start a paid generation. Continue?`
 

@@ -29,6 +29,8 @@ Default current work is post-Stage-11 product UI cleanup and cost/balance follow
 - Single Generation uses the shared concrete-task queue worker path.
 - Per-generation cost display exists; prefer actual Segmind response cost fields, otherwise use official pricing estimates.
 - Account balance remains unavailable until an official/stable API-key endpoint is found.
+- Queue history uses Single Generation-style cards; edit/regenerate should target one selected item through Single Generation.
+- Queue labels should remain human-readable: `Queue #N` and `N-M`; DB ids belong in debug details.
 - Keep paid actions explicit and confirmed.
 
 ## Rules

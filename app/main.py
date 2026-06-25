@@ -243,6 +243,37 @@ def project_context() -> dict:
     }
 
 
+
+def output_preview_url_for_path(output_path: str | None) -> tuple[str | None, str | None]:
+    if not output_path:
+        return None, None
+
+    try:
+        path = Path(output_path).resolve()
+        output_root = projects_module.get_output_root().resolve()
+        if path.exists() and path.is_file() and path.is_relative_to(output_root):
+            return str(path), "/safe-media-file?path=" + quote(str(path), safe="")
+    except Exception:
+        pass
+
+    return output_path, None
+
+
+def queue_group_key_for_task(task: dict) -> str:
+    params = task.get("params") or {}
+    for key in ("queue_group_id", "batch_import_id", "continuation_chain_id"):
+        value = params.get(key)
+        if value:
+            return f"{key}:{value}"
+    return f"task:{task.get('id')}"
+
+
+def queue_display_name_for_task(task: dict) -> str:
+    params = task.get("params") or {}
+    return params.get("name") or params.get("single_generation_name") or params.get("scene_name") or f"Queue item #{task.get('id')}"
+
+
+
 def last_frame_view_for_task(task: dict) -> dict:
     info = {
         "last_frame_exists": False,
@@ -290,19 +321,46 @@ def last_frame_view_for_task(task: dict) -> dict:
 
 
 def queue_tasks_for_view():
-    tasks = []
-    for task in list_tasks(limit=200):
+    all_tasks = []
+    for task in list_tasks(limit=1000):
         params = task.get("params") or {}
         if params.get("mode") in SINGLE_GENERATION_MODES:
             continue
-        tasks.append(task)
-        if len(tasks) >= 20:
-            break
+        all_tasks.append(task)
 
-    for task in tasks:
-        output_path = task.get("output_path")
+    group_numbers: dict[str, int] = {}
+    next_group_number = 1
+    group_item_counts: dict[str, int] = {}
+
+    for task in sorted(all_tasks, key=lambda item: int(item.get("id") or 0)):
+        group_key = queue_group_key_for_task(task)
+        if group_key not in group_numbers:
+            group_numbers[group_key] = next_group_number
+            next_group_number += 1
+        group_item_counts[group_key] = group_item_counts.get(group_key, 0) + 1
+
+    item_indexes: dict[str, int] = {}
+    for task in sorted(all_tasks, key=lambda item: int(item.get("id") or 0)):
+        group_key = queue_group_key_for_task(task)
+        item_indexes[group_key] = item_indexes.get(group_key, 0) + 1
+        group_number = group_numbers[group_key]
+        item_number = item_indexes[group_key]
         params = task.get("params") or {}
+        refs_view = [ref_view_for_item(item) for item in (task.get("refs") or [])]
+        summary = load_summary_for_run(task.get("run_dir"))
+        output_path = task.get("output_path") or summary.get("video_path")
+        output_path, output_preview_url = output_preview_url_for_path(output_path)
 
+        task["queue_group_key"] = group_key
+        task["queue_number"] = group_number
+        task["queue_label"] = f"Queue #{group_number}"
+        task["queue_label_ru"] = f"Очередь #{group_number}"
+        task["queue_item_number"] = item_number
+        task["queue_item_label"] = f"{group_number}-{item_number}"
+        task["queue_group_size"] = group_item_counts.get(group_key, 1)
+        task["display_name"] = queue_display_name_for_task(task)
+        task["output_path"] = output_path
+        task["output_preview_url"] = output_preview_url
         task["output_windows_path"] = to_windows_path(output_path)
         task["output_filename"] = Path(output_path).name if output_path else None
         task["run_dir_windows_path"] = to_windows_path(task.get("run_dir"))
@@ -310,12 +368,30 @@ def queue_tasks_for_view():
         task["batch_import_id"] = params.get("batch_import_id")
         task["task_mode"] = params.get("mode")
         task["is_batch_import"] = bool(params.get("batch_import_id") or params.get("batch_row_number"))
-        refs_view = [ref_view_for_item(item) for item in (task.get("refs") or [])]
         task["refs_view"] = refs_view
-        task["cost_label"] = cost_label_from_generation(load_summary_for_run(task.get("run_dir")), model=task.get("model") or params.get("model"), params=params, refs=refs_view)
+        task["cost_label"] = cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs_view)
         task.update(last_frame_view_for_task(task))
 
-    return tasks
+    tasks = sorted(all_tasks, key=lambda item: int(item.get("id") or 0), reverse=True)[:80]
+
+    batches = []
+    batch_by_key = {}
+    for task in tasks:
+        group_key = task["queue_group_key"]
+        if group_key not in batch_by_key:
+            batch = {
+                "group_key": group_key,
+                "queue_number": task["queue_number"],
+                "queue_label": task["queue_label"],
+                "queue_label_ru": task["queue_label_ru"],
+                "tasks": [],
+            }
+            batches.append(batch)
+            batch_by_key[group_key] = batch
+        batch_by_key[group_key]["tasks"].append(task)
+
+    return tasks, batches
+
 
 
 def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
@@ -525,6 +601,9 @@ def base_context(
     batch_import_report: dict | None = None,
     night_mode_report: dict | None = None,
 ):
+    queue_tasks, queue_batches = queue_tasks_for_view()
+    single_history = single_generation_history_for_view()
+
     context = {
         "request": request,
         "app_version": "0.1.0",
@@ -532,8 +611,9 @@ def base_context(
         "app_subtitle": APP_SUBTITLE,
         "api_key_set": env_key_is_set(),
         "api_base": SEGMIND_API_BASE,
-        "segmind_balance_label": "Balance unavailable via API key",
-        "segmind_balance_hint": "Per-generation cost uses Segmind pricing estimate unless the API response includes actual cost.",
+        "segmind_balance_label": "Balance",
+        "segmind_balance_value": "Unavailable",
+        "segmind_balance_hint": "No official API-key balance endpoint found yet.",
         "default_model": SEGMIND_MODEL,
         "model_choices": MODEL_CHOICES,
         "output_dir": str(projects_module.get_active_project_dir()),
@@ -547,9 +627,10 @@ def base_context(
         "last_queue_run": last_queue_run,
         "batch_import_report": batch_import_report,
         "night_mode_report": night_mode_report,
-        "queue_tasks": queue_tasks_for_view(),
-        "single_history": single_generation_history_for_view(),
-        "has_processing_single_generation": any(item.get("status") in {"queued", "processing"} for item in single_generation_history_for_view(limit=20)),
+        "queue_tasks": queue_tasks,
+        "queue_batches": queue_batches,
+        "single_history": single_history,
+        "has_processing_single_generation": any(item.get("status") in {"queued", "processing"} for item in single_history[:20]),
     }
 
     context.update(project_context())
@@ -1331,6 +1412,8 @@ async def add_to_queue(
     saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="queue_upload")
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
+    queue_group_id = f"manual_{timestamp}_{uuid.uuid4().hex[:8]}"
+
     params = build_params(
         model=model,
         prompt=prompt,
@@ -1345,6 +1428,7 @@ async def add_to_queue(
         return_last_frame=return_last_frame,
         mode="queued_no_generation_yet",
     )
+    params["queue_group_id"] = queue_group_id
 
     task_id = create_task(
         model=model,

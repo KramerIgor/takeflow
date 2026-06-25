@@ -185,143 +185,134 @@
       </form>
     {% endmacro %}
 
-    {% macro queue_task_row(task, row_class="") %}
-      <div class="queue-row {{ row_class }}">
-        <div>#{{ task.id }}</div>
-        <div><span class="status-pill status-{{ task.status }}">{{ task.status }}</span></div>
-        <div>{{ task.model }}</div>
-        <div>
-          <div>{{ task.params.episode_name or "Episode_01" }}</div>
-          <div>{{ task.params.scene_name or "Scene_001" }}</div>
-          <div class="queue-settings">{{ task.params.duration }}s · {{ task.params.resolution }} · {{ task.params.aspect_ratio }}</div>
-          {% if task.is_batch_import %}
-            <div class="queue-badges">
-              <span class="queue-badge batch-badge">Batch import</span>
-              {% if task.batch_row_number %}
-                <span class="queue-badge">Row {{ task.batch_row_number }}</span>
-              {% endif %}
-            </div>
+    {% macro queue_history_card(task, row_class="") %}
+      <article class="single-history-card queue-history-card {{ row_class }}">
+        <div class="history-video-box">
+          {% if task.output_preview_url %}
+            <video src="{{ task.output_preview_url }}" controls preload="metadata"></video>
+          {% else %}
+            <div class="history-video-placeholder">No video preview</div>
           {% endif %}
-          {% if task.refs_view %}
-            <div class="queue-ref-strip">
+        </div>
+
+        <div class="history-card-body">
+          <div class="history-card-title-row">
+            <h3><span class="queue-item-label">{{ task.queue_item_label }}</span> {{ task.display_name }}</h3>
+            <span class="status-pill status-{{ task.status }}">{{ task.status }}</span>
+          </div>
+
+          <div class="queue-card-subtitle">
+            <span data-i18n="queue_label_prefix">{{ task.queue_label }}</span>
+            <span class="mono">technical id #{{ task.id }}</span>
+          </div>
+
+          <div class="history-prompt">{{ task.prompt }}</div>
+
+          <div class="history-refs">
+            {% if task.refs_view %}
               {% for ref in task.refs_view %}
-                <span class="history-ref-chip queue-ref-chip">
+                <span class="history-ref-chip">
                   {% if ref.media_type == "image" and ref.preview_url %}
                     <img src="{{ ref.preview_url }}" alt="{{ ref.filename }}">
                   {% else %}
                     <span class="media-badge">{{ ref.media_type }}</span>
                   {% endif %}
                   <span>{{ ref.filename }}</span>
+                  {% if ref.api_warning %}
+                    <span class="ref-warning">{{ ref.api_warning }}</span>
+                  {% endif %}
                 </span>
               {% endfor %}
+            {% else %}
+              <span class="muted">No attached references</span>
+            {% endif %}
+          </div>
+
+          <div class="history-meta-grid">
+            <div><span class="label">Model</span><span>{{ task.model }}</span></div>
+            <div><span class="label">Duration</span><span>{{ task.params.duration }}s</span></div>
+            <div><span class="label">Resolution</span><span>{{ task.params.resolution }}</span></div>
+            <div><span class="label">Aspect ratio</span><span>{{ task.params.aspect_ratio }}</span></div>
+            <div><span class="label">Seed</span><span>{{ task.params.seed }}</span></div>
+            <div><span class="label">Created</span><span>{{ task.created_at or "unknown" }}</span></div>
+            <div><span class="label">Completed</span><span>{{ task.completed_at or "unknown" }}</span></div>
+            <div><span class="label">Queue item</span><span>{{ task.queue_item_label }}</span></div>
+          </div>
+
+          {% if task.cost_label %}
+            <div class="history-path">
+              <span class="label">Cost</span>
+              <span class="mono">{{ task.cost_label }}</span>
             </div>
           {% endif %}
-          {% if task.task_mode %}
-            <div class="queue-meta">mode: <span class="mono">{{ task.task_mode }}</span></div>
-          {% endif %}
-          {% if task.batch_import_id %}
-            <div class="queue-meta">batch import id: <span class="mono">{{ task.batch_import_id }}</span></div>
-          {% endif %}
-        </div>
-        <div class="queue-prompt">
-          {{ task.prompt }}
-        </div>
-        <div class="queue-ready">
-          <div>Video: {% if task.output_path %}yes{% else %}no{% endif %}</div>
-          {% if task.output_filename %}
-            <div>Output: <span class="mono">{{ task.output_filename }}</span></div>
-          {% endif %}
-          <div>Last frame: {% if task.last_frame_exists %}yes{% else %}no{% endif %}</div>
-          {% if task.cost_label %}<div>Cost: {{ task.cost_label }}</div>{% endif %}
-          {% if task.output_path or task.run_dir %}<a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">Open folder</a>{% endif %}
-          {% if task.last_frame_exists %}
-            <img class="last-frame-preview compact-preview" src="{{ task.last_frame_preview_url }}" alt="Last frame preview">
+
+          {% if task.output_path or task.run_dir %}
+            <div class="history-path">
+              <span class="label">Folder</span>
+              <span class="mono">{{ task.run_dir_windows_path or task.run_dir }}</span>
+              <a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">Open folder</a>
+            </div>
           {% endif %}
 
-          {% if task.run_dir or task.output_path or task.last_frame_exists %}
-            <details class="queue-debug">
-              <summary>Debug / files</summary>
-              <div class="queue-output">
-                <div>
-                  <span class="label">Full prompt</span>
-                  <div class="queue-full-prompt">{{ task.prompt }}</div>
-                </div>
+          {% if task.error %}
+            <div class="queue-error">{{ task.error }}</div>
+          {% endif %}
 
-                {% if task.run_dir %}
-                  <div>
-                    <span class="label">Result folder</span>
-                    <div class="mono">{{ task.run_dir_windows_path or task.run_dir }}</div>
-                  </div>
-                {% endif %}
+          <div class="actions history-actions">
+            <button type="button" class="secondary-button history-edit-button">Edit prompt</button>
+            <button type="button" class="paid-button history-regenerate-button">Regenerate</button>
+          </div>
 
-                {% if task.output_path %}
-                  <div>
-                    <span class="label">Output video</span>
-                    <div class="mono">{{ task.output_windows_path or task.output_path }}</div>
-                  </div>
-                {% endif %}
-
-                {% if task.last_frame_exists %}
-                  <div class="last-frame-block">
-                    <span class="label">Last frame path</span>
-                    <div class="mono">{{ task.last_frame_windows_path or task.last_frame_path }}</div>
-                    <div class="path-actions">
-                      <a class="path-link open-path-link" href="#" data-open-path="{{ task.last_frame_path }}">
-                        Open last frame folder
-                      </a>
-                    </div>
-
-                    <form method="post" action="/continue-from-task/{{ task.id }}" class="inline-action-form continuation-action-form">
-                      <button
-                        type="submit"
-                        class="small-action-button continuation-button secondary-debug-button"
-                        onclick="return confirm('This will only add a queued continuation task. It will NOT start paid generation until you start the queue. Continue?');"
-                      >
-                        Continue from previous take
-                      </button>
-                    </form>
-                    <div class="hint">Debug fallback only. Main continuation should be prepared in the queue chain.</div>
-                  </div>
-                {% endif %}
-
-                <div class="path-actions">
-                  <a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">
-                    Open result folder
-                  </a>
-                </div>
+          <details class="queue-debug">
+            <summary>Debug / files</summary>
+            <div class="queue-output">
+              <div>
+                <span class="label">Technical task ID</span>
+                <div class="mono">#{{ task.id }}</div>
               </div>
-            </details>
-          {% endif %}
+              {% if task.task_mode %}
+                <div>
+                  <span class="label">Mode</span>
+                  <div class="mono">{{ task.task_mode }}</div>
+                </div>
+              {% endif %}
+              {% if task.batch_import_id %}
+                <div>
+                  <span class="label">Batch import ID</span>
+                  <div class="mono">{{ task.batch_import_id }}</div>
+                </div>
+              {% endif %}
+              {% if task.output_path %}
+                <div>
+                  <span class="label">Output video</span>
+                  <div class="mono">{{ task.output_windows_path or task.output_path }}</div>
+                </div>
+              {% endif %}
+              {% if task.last_frame_exists %}
+                <div>
+                  <span class="label">Last frame</span>
+                  <div class="mono">{{ task.last_frame_windows_path or task.last_frame_path }}</div>
+                </div>
+              {% endif %}
+            </div>
+          </details>
 
-          {% if task.status in ["failed", "recoverable"] and task.request_id %}
-            <div class="queue-error">
-              Failed after Segmind request was created. Recovery can check the existing request and download the result without a new paid submit.
-            </div>
-            <form method="post" action="/recover-task/{{ task.id }}" class="inline-action-form">
-              <button
-                type="submit"
-                class="small-action-button"
-                onclick="return confirm('This will not start a new paid generation. It will only check the existing Segmind request and try to download the result. Continue?');"
-              >
-                Recover result
-              </button>
-            </form>
-          {% elif task.status in ["failed", "recoverable"] %}
-            <div class="queue-error">
-              Failed before request_id was saved. Recovery is not available. You can copy this task back to queue with Retry failed.
-            </div>
-            <form method="post" action="/retry-task/{{ task.id }}" class="inline-action-form">
-              <button
-                type="submit"
-                class="small-action-button"
-                onclick="return confirm('This will only copy the failed task back to the queue. It will not start a new paid generation until you start the queue. Continue?');"
-              >
-                Retry failed
-              </button>
-            </form>
-          {% endif %}
+          <script type="application/json" class="history-item-data">
+            {{ {
+              "name": task.display_name,
+              "prompt": task.prompt,
+              "model": task.model,
+              "duration": task.params.duration,
+              "resolution": task.params.resolution,
+              "aspect_ratio": task.params.aspect_ratio,
+              "seed": task.params.seed,
+              "generate_audio": task.params.generate_audio,
+              "return_last_frame": task.params.return_last_frame,
+              "refs": task.refs_view
+            } | tojson }}
+          </script>
         </div>
-      </div>
+      </article>
     {% endmacro %}
 
     <section class="hero">
@@ -333,6 +324,10 @@
         <div class="language-switch" aria-label="Language">
           <button type="button" data-lang-option="en" class="active">EN</button>
           <button type="button" data-lang-option="ru">RU</button>
+        </div>
+        <div class="top-balance" title="{{ segmind_balance_hint }}">
+          <span data-i18n="balance_label">{{ segmind_balance_label }}</span>
+          <strong data-i18n="balance_unavailable">{{ segmind_balance_value }}</strong>
         </div>
       </div>
     </section>
@@ -370,8 +365,6 @@
             {% else %}
               <div class="status bad" data-i18n="api_key_missing">API key is missing</div>
             {% endif %}
-            <div class="status neutral">{{ segmind_balance_label }}</div>
-            <div class="hint">{{ segmind_balance_hint }}</div>
             <form method="post" action="/update-api-settings" class="form compact-form">
               <label>
                 API key
@@ -943,54 +936,22 @@
 
       <section class="panel">
       <h2 data-i18n="queue_history">Queue / History</h2>
-      {% if queue_tasks %}
-        <div class="queue-summary">
-          Open generated folders directly from the rows below. Completed and cancelled tasks are collapsed.
+      {% if queue_batches %}
+        <div class="queue-summary" data-i18n="queue_history_hint">
+          Queue history uses the same cards as Single Generation history. Edit or regenerate sends one selected item to Single Generation.
         </div>
-        <div class="queue-table">
-          <div class="queue-row queue-head">
-            <div>ID</div>
-            <div>Status</div>
-            <div>Model</div>
-            <div>Scene</div>
-            <div>Prompt</div>
-            <div>Ready</div>
-          </div>
-          {% set recent = namespace(completed=0, shown=0) %}
-          {% for task in queue_tasks %}
-            {% if task.status not in ["completed", "cancelled"] %}
-              {{ queue_task_row(task) }}
-              {% set recent.shown = recent.shown + 1 %}
-            {% elif task.status == "completed" and recent.completed < 3 %}
-              {{ queue_task_row(task, "recent-completed-row") }}
-              {% set recent.completed = recent.completed + 1 %}
-              {% set recent.shown = recent.shown + 1 %}
-            {% endif %}
+        <div class="queue-history-grid">
+          {% for batch in queue_batches %}
+            <section class="queue-batch-section">
+              <h3 class="queue-batch-title" data-queue-label-en="{{ batch.queue_label }}" data-queue-label-ru="{{ batch.queue_label_ru }}">{{ batch.queue_label }}</h3>
+              <div class="single-history-grid">
+                {% for task in batch.tasks %}
+                  {{ queue_history_card(task) }}
+                {% endfor %}
+              </div>
+            </section>
           {% endfor %}
         </div>
-
-        {% if recent.shown == 0 %}
-          <div class="muted empty-active-queue">No active tasks. Recent completed and cancelled tasks are in history below.</div>
-        {% endif %}
-
-        <details class="history-details">
-          <summary>Completed / cancelled history</summary>
-          <div class="queue-table history-table">
-            <div class="queue-row queue-head">
-              <div>ID</div>
-              <div>Status</div>
-              <div>Model</div>
-              <div>Scene</div>
-              <div>Prompt</div>
-              <div>Ready</div>
-            </div>
-            {% for task in queue_tasks %}
-              {% if task.status in ["completed", "cancelled"] %}
-                {{ queue_task_row(task, "history-row") }}
-              {% endif %}
-            {% endfor %}
-          </div>
-        </details>
       {% else %}
         <div class="muted">No queued tasks yet.</div>
       {% endif %}
@@ -1039,7 +1000,10 @@
           processing_notice: "Генерация выполняется. Страница обновляется автоматически.",
           queue_controls: "Управление очередью",
           queue_controls_hint: "Запускай задачи, когда они готовы. Платные действия всегда требуют подтверждения.",
-          queue_history: "Очередь / история"
+          queue_history: "Очередь / история",
+          queue_history_hint: "История очереди использует такие же карточки, как одиночная история. Редактирование или перегенерация отправляет один выбранный элемент в одиночную генерацию.",
+          balance_label: "Баланс",
+          balance_unavailable: "Недоступен"
         },
         en: {}
       };
@@ -1059,6 +1023,9 @@
         for (const button of switchButtons) {
           button.classList.toggle("active", button.dataset.langOption === lang);
           button.setAttribute("aria-pressed", button.dataset.langOption === lang ? "true" : "false");
+        }
+        for (const title of document.querySelectorAll("[data-queue-label-en]")) {
+          title.textContent = lang === "ru" ? title.dataset.queueLabelRu : title.dataset.queueLabelEn;
         }
         localStorage.setItem(storageKey, lang);
       }

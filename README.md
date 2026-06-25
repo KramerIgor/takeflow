@@ -190,6 +190,7 @@ Final safe diagnostic command:
 
     .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
     .venv/bin/python -u scripts/check_cost_estimates.py
+    .venv/bin/python -u scripts/check_queue_history_cards.py
 
 The diagnostic command runs compile checks and safe dry-run checks. It does not start paid generation.
 
@@ -236,6 +237,10 @@ Implemented and verified:
 - EN/RU language switch exists for main UI labels.
 - Per-generation cost display is implemented. It prefers actual cost fields from Segmind response payloads and otherwise falls back to official Seedance pricing estimates.
 - Account balance endpoint was not found via documented/public API-key GET probes; UI shows this as unavailable instead of guessing.
+- Top bar shows `Balance: Unavailable` under the EN/RU switch, with RU translation.
+- Queue history now uses the same card layout as Single Generation history: video preview, refs, settings, status, cost, folder link, Edit prompt and Regenerate.
+- Queue cards edit/regenerate into Single Generation, so only the selected queue item is regenerated.
+- Queue UI uses stable human labels `Queue #N` and item labels `N-M`; technical DB ids stay in Debug / files.
 
 Safe verification passed:
 

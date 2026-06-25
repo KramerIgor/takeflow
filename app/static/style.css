@@ -75,9 +75,9 @@ h3 {
 }
 
 .top-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
 }
 
 .language-switch {
@@ -98,6 +98,19 @@ h3 {
 .language-switch button.active {
   background: var(--accent-2);
   color: var(--text);
+}
+
+.top-balance {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.top-balance strong {
+  color: var(--text);
+  font-size: 13px;
 }
 
 .tabs {
@@ -752,4 +765,38 @@ button:disabled {
 
 .queue-ref-chip {
   max-width: 180px;
+}
+
+
+.queue-history-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.queue-batch-section {
+  display: grid;
+  gap: 10px;
+}
+
+.queue-batch-title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--soft);
+}
+
+.queue-history-card {
+  grid-template-columns: minmax(220px, 300px) 1fr;
+}
+
+.queue-card-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queue-item-label {
+  color: var(--accent);
+  margin-right: 6px;
 }

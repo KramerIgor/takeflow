@@ -100,10 +100,9 @@ The GUI is tab-based:
 Current state:
 
 - Continuation Chain is no longer a main tab; queue/CSV workflows are the primary path for normal users.
-- Backend routes/endpoints are unchanged.
+- Queue and Single Generation now share the same real generation worker path.
 - Worker backend queue chaining is validated.
-- DB and API client are unchanged.
-- Stage 8 is complete as working baseline.
+- DB schema and Segmind API client are unchanged.
 
 Parked items:
 
@@ -190,6 +189,7 @@ The start script launches Uvicorn only. It does not start queue processing by it
 Final safe diagnostic command:
 
     .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
+    .venv/bin/python -u scripts/check_cost_estimates.py
 
 The diagnostic command runs compile checks and safe dry-run checks. It does not start paid generation.
 
@@ -214,6 +214,45 @@ Safe UI polish check:
 Stable backup after UI polish and Stage 9 smoke-tests:
 
     /home/iokramer/seedance_gui_backups/stable_stage11_ui_polished_and_smoke_tested_20260621_093904
+
+
+## Current handoff — 2026-06-24
+
+Today the product UI cleanup moved beyond the old Stage 11 wording.
+
+Implemented and verified:
+
+- Git is initialized; `.gitignore` excludes `.env`, virtualenv, sqlite DB, logs, snapshots, tmp files and active project state.
+- Header no longer shows internal stage/version text.
+- Main tabs are: Projects, Single Generation, History, Queue.
+- Projects screen includes editable API settings and inactive project deletion.
+- Single Generation starts in the background and immediately appears in History as processing.
+- Single Generation now dispatches through the same proven queue worker path by concrete `task_id`.
+- Single Generation and Queue both accept drag/drop reference files.
+- Queue reference input now accepts image, video and audio files via `reference_files`.
+- Image references are sent to Segmind. Video/audio references are saved with the task/history but are not sent to the API client yet.
+- Attached references are visible in Queue before submit and in queue rows after task creation.
+- Prompt reference tokens are normalized to `<@filename>`.
+- EN/RU language switch exists for main UI labels.
+- Per-generation cost display is implemented. It prefers actual cost fields from Segmind response payloads and otherwise falls back to official Seedance pricing estimates.
+- Account balance endpoint was not found via documented/public API-key GET probes; UI shows this as unavailable instead of guessing.
+
+Safe verification passed:
+
+    .venv/bin/python -m compileall app/main.py app/queue_worker.py
+    .venv/bin/python -u scripts/check_stage11_ui_polish.py
+    .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
+
+Safe route checks performed without paid/API calls:
+
+- Queue route saved image/audio/video refs and normalized prompt to `<@...>`.
+- Single Generation route called the concrete-task worker and normalized prompt to `<@...>`.
+
+Open next task:
+
+- If Segmind later exposes actual `cost` in result/status payloads, the UI will prefer it automatically.
+- Account balance remains open until an official/stable API-key endpoint is found or the user explicitly approves a dashboard/private endpoint approach.
+
 
 ## Backup rules
 

@@ -67,7 +67,7 @@ def main_run() -> int:
             'name="seed"',
             'name="generate_audio"',
             'name="return_last_frame"',
-            'name="reference_images"',
+            'name="reference_files"',
         ]
     )
 

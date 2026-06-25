@@ -34,9 +34,9 @@ Done:
   - Single Generation
   - History
   - Queue
-- The tab-based UI is presentation-only at this point.
-- Backend routes/endpoints are unchanged.
-- Worker, DB and Segmind API client are unchanged.
+- The tab-based UI is product-facing and actively used.
+- Single Generation now dispatches through the same concrete-task worker path as Queue.
+- DB schema and Segmind API client are unchanged.
 - Continuation Chain is no longer a primary tab; continuation remains a backend/queue capability.
 - Manual Continue from previous take remains available only as a secondary/debug fallback inside Queue row Debug / files.
 - Backend queue chaining dry-run passed:
@@ -44,15 +44,10 @@ Done:
 - Real paid continuation test passed for task #26.
 - Backend behavior confirmed: parent last_frame.png is uploaded through existing upload_asset and appended to child reference_images.
 - first_frame_url is not the default workflow.
-- Chain Builder UI is implemented in the Continuation Chain tab.
-- Chain Builder route:
+- Chain Builder route still exists:
   POST /add-continuation-chain
-- Chain Builder creates queued tasks only. It does not start paid generation.
-- GUI smoke-test passed:
-  RESULT=STAGE8_CHAIN_BUILDER_GUI_SMOKE_TEST_OK
-- Test chain was cancelled safely:
-  tasks #27, #28, #29 cancelled
-  queued_count=0
+- Continuation Chain is not a primary tab in the current product UI.
+- Normal continuation work should be driven through Queue/CSV/task flows.
 
 Confirmed run:
 
@@ -194,6 +189,7 @@ Done:
 Stage 11 final diagnostics passed:
 
     RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=COST_ESTIMATES_OK
 
 Stage 11 pre-edit backup:
 
@@ -226,6 +222,46 @@ Safe UI polish check:
 Stable backup after Stage 11 UI polish and Stage 9 smoke-tests:
 
     /home/iokramer/seedance_gui_backups/stable_stage11_ui_polished_and_smoke_tested_20260621_093904
+
+
+## Product UI cleanup handoff — 2026-06-24
+
+This is the current state to use at the next session start.
+
+Done today:
+
+- Main UI is product-facing: Projects, Single Generation, History, Queue.
+- Stage/version label is removed from the header.
+- API settings can be edited from Projects without showing the current `.env` secret value.
+- Inactive projects can be deleted from the UI after confirmation.
+- Single Generation starts in the background and appears in History while processing.
+- Single Generation now uses the same queue worker path as Queue, targeted by concrete `task_id`.
+- Queue accepts image, video and audio references through `reference_files`.
+- Queue and Single Generation both support drag/drop reference files and reference chips/cards.
+- Queue rows show attached references after task creation.
+- Prompt tokens are stored as `<@filename>`; backend normalizes bare `@filename` when it matches an attached reference.
+- EN/RU switch exists for main UI labels.
+- Git is initialized and AGENTS.md allows commits for completed checkpoints after `git status` and secret/runtime-output review.
+
+Verification passed:
+
+    RESULT=STAGE11_UI_POLISH_OK
+    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+
+Safe route checks passed without paid/API calls:
+
+- Queue route: image/audio/video refs persisted and prompt normalized to `<@...>`.
+- Single Generation route: concrete-task worker dispatch occurred and prompt normalized to `<@...>`.
+
+Known open item for next session:
+
+- Per-generation cost display is implemented.
+- The app prefers actual cost fields from Segmind response payloads when present.
+- Existing saved result/status payloads did not include cost, so the app falls back to official Seedance pricing estimates by model/resolution/aspect/duration.
+- User dashboard example `seedance-2.0-fast`, 4s, 480p showed about `$0.2273`; official pricing estimate is `~$0.2248`.
+- Account balance remains unavailable: read-only probes for obvious API-key balance/usage/credits endpoints on platform/cloud Segmind returned 404.
+- Do not use private dashboard endpoints for balance without explicit user approval.
+
 
 ## Next step
 

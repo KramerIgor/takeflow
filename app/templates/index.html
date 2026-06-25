@@ -10,7 +10,7 @@
   <main class="page">
     {% macro generation_form(form_kind) %}
       <form
-        class="form generation-form {% if form_kind == 'single' %}single-generation-form{% endif %}"
+        class="form generation-form {% if form_kind == 'single' %}single-generation-form{% elif form_kind == 'queue' %}queue-generation-form{% endif %}"
         method="post"
         enctype="multipart/form-data"
         {% if form_kind == "single" %}action="/run-single-generation"{% endif %}
@@ -58,9 +58,20 @@
             <div data-existing-reference-inputs></div>
           </div>
         {% else %}
-          <label>
+          <label class="prompt-editor-label">
             Prompt
-            <textarea name="prompt" rows="8" placeholder="Describe the anime video scene..."></textarea>
+            <div class="prompt-dropzone" data-queue-prompt-dropzone>
+              <textarea
+                name="prompt"
+                rows="8"
+                class="prompt-editor"
+                placeholder="Describe the anime video scene..."
+              ></textarea>
+              <div class="prompt-drop-hint">
+                Drop images, videos, or audio here, or type @ to reference attached files.
+              </div>
+              <div class="ref-token-menu" data-queue-ref-token-menu hidden></div>
+            </div>
           </label>
         {% endif %}
 
@@ -136,15 +147,22 @@
         {% if form_kind != "single" %}
           <div class="attached-refs-shell queue-refs-shell" data-queue-dropzone>
             <div class="attached-refs-header">
-              <span>Reference images</span>
+              <span>Attached references</span>
               <label class="secondary-button file-picker-label">
-                Add images
-                <input type="file" name="reference_images" accept="image/png,image/jpeg,image/webp" multiple data-queue-reference-files>
+                Add files
+                <input
+                  type="file"
+                  name="reference_files"
+                  accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav,audio/mp4,audio/aac,audio/ogg,audio/flac"
+                  multiple
+                  data-queue-reference-files
+                >
               </label>
             </div>
             <div class="attached-refs-list" data-queue-attached-refs>
-              <div class="muted empty-refs">Drop images here or choose files.</div>
+              <div class="muted empty-refs">Drop files here or choose files.</div>
             </div>
+            <div class="hint">Images are sent to the API. Video and audio references are saved with the task.</div>
           </div>
         {% endif %}
 
@@ -184,6 +202,20 @@
               {% endif %}
             </div>
           {% endif %}
+          {% if task.refs_view %}
+            <div class="queue-ref-strip">
+              {% for ref in task.refs_view %}
+                <span class="history-ref-chip queue-ref-chip">
+                  {% if ref.media_type == "image" and ref.preview_url %}
+                    <img src="{{ ref.preview_url }}" alt="{{ ref.filename }}">
+                  {% else %}
+                    <span class="media-badge">{{ ref.media_type }}</span>
+                  {% endif %}
+                  <span>{{ ref.filename }}</span>
+                </span>
+              {% endfor %}
+            </div>
+          {% endif %}
           {% if task.task_mode %}
             <div class="queue-meta">mode: <span class="mono">{{ task.task_mode }}</span></div>
           {% endif %}
@@ -200,6 +232,7 @@
             <div>Output: <span class="mono">{{ task.output_filename }}</span></div>
           {% endif %}
           <div>Last frame: {% if task.last_frame_exists %}yes{% else %}no{% endif %}</div>
+          {% if task.cost_label %}<div>Cost: {{ task.cost_label }}</div>{% endif %}
           {% if task.output_path or task.run_dir %}<a class="path-link open-path-link" href="#" data-open-path="{{ task.output_path or task.run_dir }}">Open folder</a>{% endif %}
           {% if task.last_frame_exists %}
             <img class="last-frame-preview compact-preview" src="{{ task.last_frame_preview_url }}" alt="Last frame preview">
@@ -337,6 +370,8 @@
             {% else %}
               <div class="status bad" data-i18n="api_key_missing">API key is missing</div>
             {% endif %}
+            <div class="status neutral">{{ segmind_balance_label }}</div>
+            <div class="hint">{{ segmind_balance_hint }}</div>
             <form method="post" action="/update-api-settings" class="form compact-form">
               <label>
                 API key
@@ -974,6 +1009,70 @@
     </div>
   </div>
 
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const storageKey = "seedance_gui_language_v1";
+      const switchButtons = Array.from(document.querySelectorAll("[data-lang-option]"));
+      const translations = {
+        ru: {
+          app_subtitle: "Локальная рабочая среда генерации видео",
+          tab_projects: "Проекты",
+          tab_single: "Одиночная генерация",
+          tab_history: "История",
+          tab_queue: "Очередь",
+          projects_title: "Проекты",
+          output_root: "Корневая папка",
+          active_folder: "Активная папка",
+          api_settings: "Настройки API",
+          api_key_set: "API ключ задан",
+          api_key_missing: "API ключ не задан",
+          save_api: "Сохранить API",
+          api_restart_hint: "Перезапусти GUI после смены ключа или модели.",
+          project_list: "Папки проектов",
+          create_project: "Создать проект",
+          create: "Создать",
+          single_title: "Одиночная генерация",
+          single_hint: "Стартует в фоне и появляется в истории во время обработки.",
+          history_title: "История",
+          history_hint: "Здесь видны одиночные генерации, включая обработку и ошибки.",
+          processing_notice: "Генерация выполняется. Страница обновляется автоматически.",
+          queue_controls: "Управление очередью",
+          queue_controls_hint: "Запускай задачи, когда они готовы. Платные действия всегда требуют подтверждения.",
+          queue_history: "Очередь / история"
+        },
+        en: {}
+      };
+
+      const originalText = new Map();
+      for (const node of document.querySelectorAll("[data-i18n]")) {
+        originalText.set(node, node.textContent);
+      }
+
+      function setLanguage(lang) {
+        const dict = translations[lang] || {};
+        document.documentElement.lang = lang;
+        for (const node of document.querySelectorAll("[data-i18n]")) {
+          const key = node.dataset.i18n;
+          node.textContent = dict[key] || originalText.get(node) || node.textContent;
+        }
+        for (const button of switchButtons) {
+          button.classList.toggle("active", button.dataset.langOption === lang);
+          button.setAttribute("aria-pressed", button.dataset.langOption === lang ? "true" : "false");
+        }
+        localStorage.setItem(storageKey, lang);
+      }
+
+      for (const button of switchButtons) {
+        button.addEventListener("click", function () {
+          setLanguage(button.dataset.langOption || "en");
+        });
+      }
+
+      setLanguage(localStorage.getItem(storageKey) || "en");
+    });
+  </script>
+
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const tabStorageKey = "seedance_gui_active_tab_v1";
@@ -1121,7 +1220,7 @@
       }
 
       function insertToken(filename) {
-        const token = "@" + filename;
+        const token = "<@" + filename + ">";
         const start = promptField.selectionStart || promptField.value.length;
         const end = promptField.selectionEnd || start;
         const before = promptField.value.slice(0, start);
@@ -1151,7 +1250,7 @@
           const card = document.createElement("div");
           card.className = "ref-card";
           card.tabIndex = 0;
-          card.title = "Insert @" + ref.filename;
+          card.title = "Insert <@" + ref.filename + ">";
 
           if (ref.media_type === "image" && ref.preview_url) {
             const image = document.createElement("img");
@@ -1234,7 +1333,7 @@
           const option = document.createElement("button");
           option.type = "button";
           option.className = "ref-token-option";
-          option.textContent = "@" + ref.filename;
+          option.textContent = "<@" + ref.filename + ">";
           option.addEventListener("click", function () {
             insertToken(ref.filename);
           });
@@ -1380,6 +1479,196 @@
         }
       });
 
+      renderRefs();
+    });
+  </script>
+
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const form = document.querySelector(".queue-generation-form");
+      if (!form) {
+        return;
+      }
+
+      const promptField = form.elements.prompt;
+      const fileInput = form.querySelector("[data-queue-reference-files]");
+      const promptDropzone = form.querySelector("[data-queue-prompt-dropzone]");
+      const fileDropzone = form.querySelector("[data-queue-dropzone]");
+      const refsList = form.querySelector("[data-queue-attached-refs]");
+      const tokenMenu = form.querySelector("[data-queue-ref-token-menu]");
+      const attachedFiles = [];
+
+      function mediaTypeForName(name) {
+        const suffix = String(name || "").toLowerCase().split(".").pop();
+        if (["png", "jpg", "jpeg", "webp"].includes(suffix)) return "image";
+        if (["mp4", "mov", "webm", "mkv"].includes(suffix)) return "video";
+        if (["mp3", "wav", "m4a", "aac", "ogg", "flac"].includes(suffix)) return "audio";
+        return "unsupported";
+      }
+
+      function syncFileInput() {
+        const transfer = new DataTransfer();
+        for (const file of attachedFiles) {
+          transfer.items.add(file);
+        }
+        fileInput.files = transfer.files;
+      }
+
+      function currentRefs() {
+        return attachedFiles.map(function (file, index) {
+          return {
+            index: index,
+            filename: file.name,
+            media_type: mediaTypeForName(file.name),
+            preview_url: URL.createObjectURL(file)
+          };
+        });
+      }
+
+      function hideTokenMenu() {
+        tokenMenu.hidden = true;
+        tokenMenu.innerHTML = "";
+      }
+
+      function insertToken(filename) {
+        const token = "<@" + filename + ">";
+        const start = promptField.selectionStart || promptField.value.length;
+        const end = promptField.selectionEnd || start;
+        const before = promptField.value.slice(0, start);
+        const after = promptField.value.slice(end);
+        const prefix = before.endsWith("@") ? before.slice(0, -1) : before;
+        const spacer = prefix && !/\s$/.test(prefix) ? " " : "";
+        promptField.value = prefix + spacer + token + " " + after;
+        promptField.focus();
+        const caret = (prefix + spacer + token + " ").length;
+        promptField.setSelectionRange(caret, caret);
+        hideTokenMenu();
+      }
+
+      function renderRefs() {
+        const refs = currentRefs();
+        refsList.innerHTML = "";
+        if (!refs.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted empty-refs";
+          empty.textContent = "Drop files here or choose files.";
+          refsList.appendChild(empty);
+          hideTokenMenu();
+          return;
+        }
+
+        for (const ref of refs) {
+          const card = document.createElement("div");
+          card.className = "ref-card";
+          card.tabIndex = 0;
+          card.title = "Insert <@" + ref.filename + ">";
+
+          if (ref.media_type === "image" && ref.preview_url) {
+            const image = document.createElement("img");
+            image.src = ref.preview_url;
+            image.alt = ref.filename;
+            card.appendChild(image);
+          } else {
+            const badge = document.createElement("span");
+            badge.className = "media-badge";
+            badge.textContent = ref.media_type;
+            card.appendChild(badge);
+          }
+
+          const name = document.createElement("span");
+          name.textContent = ref.filename;
+          card.appendChild(name);
+
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "Remove";
+          remove.addEventListener("click", function (event) {
+            event.stopPropagation();
+            attachedFiles.splice(ref.index, 1);
+            syncFileInput();
+            renderRefs();
+          });
+          card.addEventListener("click", function () {
+            insertToken(ref.filename);
+          });
+          card.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              insertToken(ref.filename);
+            }
+          });
+          card.appendChild(remove);
+          refsList.appendChild(card);
+        }
+      }
+
+      function addFiles(files) {
+        for (const file of Array.from(files || [])) {
+          if (mediaTypeForName(file.name) === "unsupported") {
+            continue;
+          }
+          attachedFiles.push(file);
+        }
+        syncFileInput();
+        renderRefs();
+      }
+
+      function showTokenMenu() {
+        const refs = currentRefs();
+        tokenMenu.innerHTML = "";
+        if (!refs.length) {
+          hideTokenMenu();
+          return;
+        }
+        for (const ref of refs) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "ref-token-option";
+          option.textContent = "<@" + ref.filename + ">";
+          option.addEventListener("click", function () {
+            insertToken(ref.filename);
+          });
+          tokenMenu.appendChild(option);
+        }
+        tokenMenu.hidden = false;
+      }
+
+      function maybeShowTokenMenu() {
+        const caret = promptField.selectionStart || 0;
+        if (promptField.value.slice(Math.max(0, caret - 1), caret) === "@") {
+          showTokenMenu();
+        } else {
+          hideTokenMenu();
+        }
+      }
+
+      function wireDropzone(zone) {
+        if (!zone) return;
+        for (const eventName of ["dragenter", "dragover"]) {
+          zone.addEventListener(eventName, function (event) {
+            event.preventDefault();
+            zone.classList.add("drag-over");
+          });
+        }
+        for (const eventName of ["dragleave", "drop"]) {
+          zone.addEventListener(eventName, function () {
+            zone.classList.remove("drag-over");
+          });
+        }
+        zone.addEventListener("drop", function (event) {
+          event.preventDefault();
+          addFiles(event.dataTransfer.files);
+        });
+      }
+
+      fileInput.addEventListener("change", function () {
+        addFiles(fileInput.files);
+      });
+      promptField.addEventListener("keyup", maybeShowTokenMenu);
+      promptField.addEventListener("click", hideTokenMenu);
+      wireDropzone(promptDropzone);
+      wireDropzone(fileDropzone);
       renderRefs();
     });
   </script>

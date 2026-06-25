@@ -59,12 +59,14 @@ def main() -> int:
                 "scripts/check_stage11_final_diagnostics.py",
                 "scripts/check_stage10_night_mode_dry_run.py",
                 "scripts/check_stage9_batch_import_dry_run.py",
+                "scripts/check_cost_estimates.py",
             ],
         ),
         run_check("stage10_night_mode", [str(PYTHON), "-u", "scripts/check_stage10_night_mode_dry_run.py"]),
         run_check("stage9_batch_import", [str(PYTHON), "-u", "scripts/check_stage9_batch_import_dry_run.py"]),
         run_check("stage8_backend_chaining", [str(PYTHON), "-u", "scripts/check_stage8_backend_chaining_dry_run.py"]),
         run_check("stage8_tabs_ui", [str(PYTHON), "-u", "scripts/check_stage8_tabs_ui.py"]),
+        run_check("cost_estimates", [str(PYTHON), "-u", "scripts/check_cost_estimates.py"]),
     ]
 
     if all(checks):

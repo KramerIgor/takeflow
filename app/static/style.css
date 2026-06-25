@@ -199,6 +199,10 @@ h3 {
   color: var(--bad);
 }
 
+.status.neutral {
+  color: var(--muted);
+}
+
 .form,
 .compact-form {
   display: grid;
@@ -736,4 +740,16 @@ button:disabled {
   .project-create-row {
     grid-template-columns: 1fr;
   }
+}
+
+
+.queue-ref-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.queue-ref-chip {
+  max-width: 180px;
 }

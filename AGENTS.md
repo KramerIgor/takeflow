@@ -12,7 +12,7 @@ Completed stages: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11.
 
 Current stage: product UI cleanup baseline after Stage 11.
 
-Active project: Psailor_kun.
+Active project is local runtime state in `data/active_project.json`; do not hardcode it in implementation.
 
 Project code path in WSL:
 
@@ -65,6 +65,33 @@ Pre Stage 11 packaging backup:
 Stable Stage 11 complete backup:
 
     /home/iokramer/seedance_gui_backups/stable_stage11_complete_20260621_003956
+
+
+## Latest handoff — 2026-06-24
+
+Current UI state:
+
+- Main tabs: Projects, Single Generation, History, Queue.
+- Continuation Chain is not a primary tab.
+- Single Generation starts in background, appears in History, and uses the shared concrete-task queue worker path.
+- Single Generation and Queue both accept image/video/audio reference files through drag/drop or file picker.
+- Queue uses `reference_files`, not `reference_images`, for UI uploads.
+- Images are sent to the current Segmind API client; video/audio refs are stored with the task/history and shown in UI, but not sent to API yet.
+- Prompt reference tokens should be saved as `<@filename>`.
+- Main UI labels have EN/RU switching.
+
+Current verification:
+
+    RESULT=STAGE11_UI_POLISH_OK
+    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+
+Next likely task:
+
+- Per-generation cost display is implemented: prefer actual Segmind response cost fields, otherwise use official Seedance pricing estimates.
+- Account balance display remains unavailable until an official/stable API-key endpoint is found.
+- Read-only platform/cloud balance endpoint probes returned 404.
+- Do not scrape/private-call the dashboard without explicit approval.
+
 
 ## Current storage structure
 
@@ -125,7 +152,7 @@ Real paid continuation test passed:
 
 Confirmed backend behavior: parent last_frame.png is uploaded through existing upload_asset and appended to child reference_images. first_frame_url is not the default workflow.
 
-Stage 8 Chain Builder UI is implemented in the Continuation Chain tab.
+Stage 8 Chain Builder route still exists as a backend/queue capability, but Continuation Chain is not a primary tab in the current product UI.
 
 Chain Builder route:
 
@@ -166,10 +193,10 @@ Current GUI state:
   - Single Generation
   - History
   - Queue
-- Tab-based UI includes the minimal Chain Builder in the Continuation Chain tab.
-- Existing routes/endpoints are unchanged.
+- Continuation Chain is not a primary tab in the current product UI.
 - Worker backend queue chaining is validated.
-- DB and Segmind API client are unchanged.
+- Single Generation now dispatches through the same concrete-task worker path as Queue.
+- DB schema and Segmind API client are unchanged.
 - Continuation Chain is no longer a primary tab; continuation remains available through queue/task flows.
 
 Completed product-facing GUI integration:
@@ -334,6 +361,7 @@ Before Codex makes broad changes, create a safe snapshot.
 - Before every edit-step, follow the current project stage and do not expand scope.
 - If a task belongs to a later stage, park it instead of implementing it.
 - For scoped edit-steps, Codex may create a safe backup automatically when needed.
+- Codex may create Git commits when it is useful to preserve a completed working checkpoint. Before committing, verify `git status`, keep secrets/runtime outputs out of the commit, and use a concise descriptive commit message.
 - For long operations and paid-generation steps, commands or reports should include visible progress/status updates so the user does not think the process is stuck.
 - For related verification checks, bundle them into one consolidated check step instead of many small copy-paste checks.
 - Ask for explicit confirmation only for:

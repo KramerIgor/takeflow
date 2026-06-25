@@ -4,6 +4,7 @@ from urllib.parse import quote
 import csv
 import json
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -17,9 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.db import create_task, get_task, init_db, list_tasks, update_task_fields
-from app.queue_worker import process_next_queued_task_real, process_queue_loop, _save_api_last_frame_if_present
+from app.queue_worker import process_next_queued_task_real, process_queue_loop, process_queued_task_real_by_id, _save_api_last_frame_if_present
 from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL
 from app.segmind_client import SegmindClient
+from app.costing import build_cost_info, cost_label, estimate_seedance_cost_info, extract_cost_info
 from app.storage import allocate_take_paths, sanitize_folder_part
 from app.task_recovery import recover_task_by_existing_request
 from app import projects as projects_module
@@ -104,47 +106,26 @@ def update_env_values(values: dict[str, str]) -> None:
     ENV_PATH.write_text("\n".join(output_lines).rstrip() + "\n", encoding="utf-8")
 
 
-def extract_cost_info(data: dict | None) -> dict | None:
-    if not isinstance(data, dict):
-        return None
 
-    candidates = []
+def cost_info_for_generation(summary: dict | None, *, model: str | None, params: dict | None, refs: list[dict] | None) -> dict | None:
+    if isinstance(summary, dict):
+        saved = summary.get("cost_info")
+        if isinstance(saved, dict) and (saved.get("items") or saved.get("amount_usd")):
+            return saved
 
-    def walk(obj, path=""):
-        if isinstance(obj, dict):
-            for key, value in obj.items():
-                key_lower = str(key).lower()
-                next_path = f"{path}.{key}" if path else str(key)
-                if any(token in key_lower for token in ("cost", "price", "credit", "billing", "amount")):
-                    if isinstance(value, (int, float, str)):
-                        candidates.append({"key": next_path, "value": value})
-                    elif isinstance(value, dict):
-                        candidates.append({"key": next_path, "value": value})
-                walk(value, next_path)
-        elif isinstance(obj, list):
-            for index, value in enumerate(obj):
-                walk(value, f"{path}[{index}]")
-
-    walk(data)
-    if not candidates:
-        return None
-
-    return {"source": "segmind_response", "items": candidates[:8]}
+    params = params or {}
+    return estimate_seedance_cost_info(
+        model=model or params.get("model"),
+        duration=params.get("duration"),
+        resolution=params.get("resolution"),
+        aspect_ratio=params.get("aspect_ratio"),
+        refs=refs,
+        reference_videos=params.get("reference_videos") or [],
+    )
 
 
-def cost_label_from_summary(summary: dict | None) -> str | None:
-    if not isinstance(summary, dict):
-        return None
-    cost_info = summary.get("cost_info")
-    if not isinstance(cost_info, dict):
-        return None
-    items = cost_info.get("items") or []
-    if not items:
-        return None
-    first = items[0]
-    value = first.get("value")
-    key = first.get("key") or "cost"
-    return f"{key}: {value}"
+def cost_label_from_generation(summary: dict | None, *, model: str | None, params: dict | None, refs: list[dict] | None) -> str | None:
+    return cost_label(cost_info_for_generation(summary, model=model, params=params, refs=refs))
 
 
 def load_summary_for_run(run_dir: str | None) -> dict:
@@ -329,6 +310,9 @@ def queue_tasks_for_view():
         task["batch_import_id"] = params.get("batch_import_id")
         task["task_mode"] = params.get("mode")
         task["is_batch_import"] = bool(params.get("batch_import_id") or params.get("batch_row_number"))
+        refs_view = [ref_view_for_item(item) for item in (task.get("refs") or [])]
+        task["refs_view"] = refs_view
+        task["cost_label"] = cost_label_from_generation(load_summary_for_run(task.get("run_dir")), model=task.get("model") or params.get("model"), params=params, refs=refs_view)
         task.update(last_frame_view_for_task(task))
 
     return tasks
@@ -418,7 +402,7 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
         "created_at": task.get("created_at"),
         "completed_at": task.get("completed_at"),
         "error": task.get("error"),
-        "cost_label": cost_label_from_summary(summary),
+        "cost_label": cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs),
     }
 
 
@@ -475,7 +459,7 @@ def single_generation_history_from_legacy_runs(seen_run_dirs: set[str], limit: i
             prompt = params.get("prompt") or ""
 
         status = summary.get("status") or ("failed" if error else "completed")
-        cost_label = cost_label_from_summary(summary)
+        cost_label = cost_label_from_generation(summary, model=summary.get("model") or params.get("model"), params=params, refs=refs)
 
         items.append(
             {
@@ -548,6 +532,8 @@ def base_context(
         "app_subtitle": APP_SUBTITLE,
         "api_key_set": env_key_is_set(),
         "api_base": SEGMIND_API_BASE,
+        "segmind_balance_label": "Balance unavailable via API key",
+        "segmind_balance_hint": "Per-generation cost uses Segmind pricing estimate unless the API response includes actual cost.",
         "default_model": SEGMIND_MODEL,
         "model_choices": MODEL_CHOICES,
         "output_dir": str(projects_module.get_active_project_dir()),
@@ -624,6 +610,23 @@ def auto_recover_existing_requests(limit: int = 20) -> dict:
     }
 
 
+
+def normalize_prompt_reference_tokens(prompt: str, refs: list[dict]) -> str:
+    result = prompt or ""
+    filenames = []
+
+    for ref in refs or []:
+        filename = ref.get("original_filename") or ref.get("filename")
+        if isinstance(filename, str) and filename:
+            filenames.append(filename)
+
+    for filename in sorted(set(filenames), key=len, reverse=True):
+        escaped = re.escape(filename)
+        result = re.sub(rf"(?<!<)@{escaped}(?!>)", f"<@{filename}>", result)
+
+    return result
+
+
 def normalize_model(model: str) -> str:
     allowed_models = {item["id"] for item in MODEL_CHOICES}
     return model if model in allowed_models else "seedance-2.0"
@@ -651,9 +654,9 @@ def build_params(
         "scene_name": scene_name.strip() or "Scene_001",
         "model": model,
         "prompt": prompt,
-        "reference_images": [item["local_path"] for item in saved_refs],
-        "reference_videos": [],
-        "reference_audios": [],
+        "reference_images": [item["local_path"] for item in saved_refs if item.get("media_type") in (None, "image")],
+        "reference_videos": [item["local_path"] for item in saved_refs if item.get("media_type") == "video"],
+        "reference_audios": [item["local_path"] for item in saved_refs if item.get("media_type") == "audio"],
         "duration": duration,
         "resolution": resolution,
         "aspect_ratio": aspect_ratio,
@@ -1176,7 +1179,7 @@ async def save_uploaded_refs(reference_images: list[UploadFile], refs_dir: Path)
     return saved_refs
 
 
-async def save_uploaded_reference_files(reference_files: list[UploadFile], refs_dir: Path) -> list[dict]:
+async def save_uploaded_reference_files(reference_files: list[UploadFile], refs_dir: Path, source: str = "ui_upload") -> list[dict]:
     refs_dir.mkdir(parents=True, exist_ok=True)
     saved_refs = []
 
@@ -1200,7 +1203,7 @@ async def save_uploaded_reference_files(reference_files: list[UploadFile], refs_
                 "role": f"{media_type} {index}",
                 "original_filename": Path(uploaded.filename).name,
                 "local_path": str(target_path),
-                "source": "single_generation_upload",
+                "source": source,
                 "media_type": media_type,
                 "size_bytes": target_path.stat().st_size,
             }
@@ -1317,7 +1320,7 @@ async def add_to_queue(
     seed: int = Form(-1),
     generate_audio: str | None = Form(None),
     return_last_frame: str | None = Form(None),
-    reference_images: list[UploadFile] = File(default=[]),
+    reference_files: list[UploadFile] = File(default=[]),
 ):
     model = normalize_model(model)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1325,7 +1328,8 @@ async def add_to_queue(
     refs_dir = queue_dir / "refs"
     queue_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = await save_uploaded_refs(reference_images, refs_dir)
+    saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="queue_upload")
+    prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
     params = build_params(
         model=model,
@@ -1391,7 +1395,7 @@ async def add_continuation_chain(
     chain_scene_name: str = Form("Scene_001"),
     seed: int = Form(-1),
     generate_audio: str | None = Form(None),
-    reference_images: list[UploadFile] = File(default=[]),
+    reference_files: list[UploadFile] = File(default=[]),
 ):
     model = normalize_model(model)
 
@@ -1409,7 +1413,8 @@ async def add_continuation_chain(
     refs_dir = queue_dir / "shared_refs"
     queue_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = await save_uploaded_refs(reference_images, refs_dir)
+    saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="chain_upload")
+    prompts = [normalize_prompt_reference_tokens(item, saved_refs) for item in prompts]
 
     chain_result = create_continuation_chain_tasks(
         prompts=prompts,
@@ -1643,7 +1648,7 @@ async def draft_task(
     seed: int = Form(-1),
     generate_audio: str | None = Form(None),
     return_last_frame: str | None = Form(None),
-    reference_images: list[UploadFile] = File(default=[]),
+    reference_files: list[UploadFile] = File(default=[]),
 ):
     model = normalize_model(model)
 
@@ -1651,7 +1656,8 @@ async def draft_task(
     draft_dir = projects_module.get_active_project_dir() / "gui_drafts" / f"draft_{timestamp}"
     refs_dir = draft_dir / "refs"
 
-    saved_refs = await save_uploaded_refs(reference_images, refs_dir)
+    saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="draft_upload")
+    prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
     params = build_params(
         model=model,
@@ -1831,7 +1837,7 @@ def process_single_generation_task_real(task_id: int) -> None:
             "video_size_bytes": video_path.stat().st_size,
             "single_generation_name": params.get("single_generation_name"),
             "task_id": task_id,
-            "cost_info": extract_cost_info(result_response.data),
+            "cost_info": build_cost_info(result_response.data, model=model, duration=params.get("duration"), resolution=params.get("resolution"), aspect_ratio=params.get("aspect_ratio"), refs=refs),
             **last_frame_info,
         }
         (run_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -1887,7 +1893,8 @@ async def run_single_generation(
     refs_dir.mkdir(parents=True, exist_ok=True)
 
     saved_refs = safe_existing_reference_refs(existing_reference_paths)
-    saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir))
+    saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="single_generation_upload"))
+    prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
     params = {
         "project_name": projects_module.get_active_project_name(),
@@ -1922,7 +1929,7 @@ async def run_single_generation(
     (run_dir / "refs.json").write_text(json.dumps(saved_refs, indent=2, ensure_ascii=False), encoding="utf-8")
     (run_dir / "task_id.txt").write_text(str(task_id), encoding="utf-8")
 
-    thread = threading.Thread(target=process_single_generation_task_real, args=(task_id,), daemon=True)
+    thread = threading.Thread(target=process_queued_task_real_by_id, args=(task_id,), daemon=True)
     thread.start()
 
     last_run = {

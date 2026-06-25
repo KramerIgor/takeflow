@@ -12,6 +12,7 @@ from app.db import get_next_queued_task, get_task, update_task_fields, utc_now
 from app.segmind_client import SegmindClient
 from app.settings import OUTPUT_DIR
 from app.storage import allocate_inbox_take_dir, allocate_take_paths
+from app.costing import build_cost_info
 from app.last_frame import extract_last_frame_candidate
 
 
@@ -274,6 +275,7 @@ def _extract_output_url(data: Any) -> str | None:
     return None
 
 
+
 def _download_file(url: str, path: Path) -> None:
     _log(f"downloading output to {path}")
 
@@ -393,6 +395,29 @@ def process_next_queued_task_dry_run() -> dict:
     }
 
 
+def process_queued_task_real_by_id(task_id: int) -> dict:
+    task = get_task(task_id)
+
+    if task is None:
+        _log(f"real worker: task #{task_id} was not found")
+        return {
+            "processed": False,
+            "reason": "task_not_found",
+            "task_id": task_id,
+        }
+
+    if task.get("status") != "queued":
+        _log(f"real worker: task #{task_id} is not queued | status={task.get('status')}")
+        return {
+            "processed": False,
+            "reason": "task_not_queued",
+            "task_id": task_id,
+            "status": task.get("status"),
+        }
+
+    return _process_queued_task_real(task)
+
+
 def process_next_queued_task_real() -> dict:
     task = get_next_queued_task()
 
@@ -403,6 +428,10 @@ def process_next_queued_task_real() -> dict:
             "reason": "no_queued_tasks",
         }
 
+    return _process_queued_task_real(task)
+
+
+def _process_queued_task_real(task: dict) -> dict:
     task_id = int(task["id"])
     params = task["params"]
     refs = task["refs"]
@@ -451,20 +480,23 @@ def process_next_queued_task_real() -> dict:
     try:
         client = SegmindClient(model=model, timeout=180.0)
 
+        refs_for_api = [item for item in refs if item.get("media_type") in (None, "image")]
+        stored_reference_videos = [item.get("local_path") for item in refs if item.get("media_type") == "video" and item.get("local_path")]
+        stored_reference_audios = [item.get("local_path") for item in refs if item.get("media_type") == "audio" and item.get("local_path")]
         uploaded_reference_urls: list[str] = []
         refs_for_save = []
 
-        if refs:
-            _log(f"task #{task_id}: uploading {len(refs)} reference image(s)")
+        if refs_for_api:
+            _log(f"task #{task_id}: uploading {len(refs_for_api)} reference image(s)")
         else:
             _log(f"task #{task_id}: no reference images")
 
-        for index, item in enumerate(refs, start=1):
+        for index, item in enumerate(refs_for_api, start=1):
             local_path = item.get("local_path")
             if not local_path:
                 continue
 
-            _log(f"task #{task_id}: upload reference {index}/{len(refs)}")
+            _log(f"task #{task_id}: upload reference {index}/{len(refs_for_api)}")
 
             upload_response = client.upload_asset(local_path)
 
@@ -501,6 +533,9 @@ def process_next_queued_task_real() -> dict:
 
         params_for_save = dict(payload)
         params_for_save["model"] = model
+        params_for_save["stored_reference_videos"] = stored_reference_videos
+        params_for_save["stored_reference_audios"] = stored_reference_audios
+        params_for_save["video_audio_submission_status"] = "stored_only_not_sent_to_api" if (stored_reference_videos or stored_reference_audios) else "not_applicable"
         params_for_save["reference_images"] = [
             {
                 "local_path": item.get("local_path"),
@@ -657,6 +692,7 @@ def process_next_queued_task_real() -> dict:
             "elapsed_total_seconds": elapsed_total_seconds,
             "inference_time": inference_time,
             "video_path": str(video_path),
+            "cost_info": build_cost_info(result_response.data, model=model, duration=params.get("duration"), resolution=params.get("resolution"), aspect_ratio=params.get("aspect_ratio"), refs=refs),
             "technical_output_path": str(technical_video_path),
             "video_size_bytes": video_path.stat().st_size,
             **last_frame_info,

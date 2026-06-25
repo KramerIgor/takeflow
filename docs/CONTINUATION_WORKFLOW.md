@@ -65,7 +65,7 @@ Confirmed behavior:
 
 Stage 8 is complete as a working baseline.
 
-Chain Builder UI is implemented in the Continuation Chain tab.
+Chain Builder route still exists as a backend/queue capability, but Continuation Chain is not a primary tab in the current product UI.
 
 Chain Builder route:
 
@@ -101,20 +101,19 @@ first_frame_url may be kept only as a future optional alternative mode if the us
 
 ## Current GUI state
 
-The GUI is now tab-based:
+The current primary GUI tabs are:
 
-- Project / Settings.
+- Projects.
 - Single Generation.
+- History.
 - Queue.
-- Continuation Chain.
 
 Current status:
 
-- Tab-based UI is implemented as presentation-only.
-- Backend routes/endpoints are unchanged.
+- Product UI is active, not just presentation-only.
 - Worker backend chaining is validated.
-- DB and API client are unchanged.
-- Continuation Chain tab has minimal Chain Builder UI.
+- DB schema and API client are unchanged.
+- Continuation Chain is not a primary tab; chain creation remains available through backend/queue capability.
 - Manual Continue from previous take remains inside Queue row Debug / files as secondary/debug fallback.
 
 ## Parked items

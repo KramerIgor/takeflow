@@ -20,22 +20,23 @@ Do not read `.env`.
 
 ## Current Scope
 
-Default current work is Stage 11/post-MVP Single Generation UX polish:
+Default current work is post-Stage-11 product UI cleanup and cost/balance follow-up:
 
-- Add drag-and-drop reference files to the Single Generation prompt area.
-- Show attached references as chips/cards.
-- Replace Episode/Scene in Single Generation with optional `Name`.
-- Add a separate `History` tab for Single Generation tasks/runs only.
-- Add `Edit prompt` and `Regenerate`; `Regenerate` must show `This will start a paid generation. Continue?`.
-- Add `@reference` tokens for attached references.
-- Store image/video/audio references in GUI/storage/history; send only API-supported types to paid submission.
+- Keep Projects, Single Generation, History and Queue as the primary tabs.
+- Single Generation and Queue both support drag/drop reference files.
+- Queue uses `reference_files` for image/video/audio uploads.
+- Prompt reference tokens should be stored as `<@filename>`.
+- Single Generation uses the shared concrete-task queue worker path.
+- Per-generation cost display exists; prefer actual Segmind response cost fields, otherwise use official pricing estimates.
+- Account balance remains unavailable until an official/stable API-key endpoint is found.
+- Keep paid actions explicit and confirmed.
 
 ## Rules
 
 - Reply to the user in Russian.
 - Keep GUI labels, buttons, tabs, statuses, and technical identifiers in English.
 - Do not judge prompt artistry when the task is GUI work.
-- Do not touch Queue, Batch CSV Import, Queue Controls, Night Mode, or Continuation Chain unless required.
+- Do not touch Batch CSV Import, Queue Controls, Night Mode, or continuation internals unless required.
 - Do not change DB schema, Segmind API client, or storage contracts without explicit need and confirmation.
 - Make a safe backup before broad UI/backend changes.
 - One logical edit step should end with one consolidated verification pass.

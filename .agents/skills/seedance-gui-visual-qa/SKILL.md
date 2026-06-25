@@ -21,8 +21,8 @@ Use browser verification for UI changes. Do not trigger paid generation.
 
 - GUI text stays English.
 - Technical identifiers stay English.
-- Single Generation polish is the active UX scope.
-- Queue, Batch CSV Import, Queue Controls, Night Mode, and Continuation Chain are regression-sensitive; do not change them unless the task requires it.
+- Product UI cleanup is the active UX scope across Projects, Single Generation, History and Queue.
+- Batch CSV Import, Queue Controls, Night Mode, and continuation internals are regression-sensitive; do not change them unless the task requires it.
 - `Regenerate` must warn: `This will start a paid generation. Continue?`
 
 Read `references/seedance-visual-checklist.md` before final visual verification.

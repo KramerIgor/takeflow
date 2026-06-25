@@ -14,7 +14,7 @@ Create a compact handoff that protects project state and paid-generation boundar
 - Output roots: `C:\AI_OUTPUT` and `/mnt/c/AI_OUTPUT`
 - Active result project: `/mnt/c/AI_OUTPUT/Psailor_kun`
 - Stack: FastAPI + Uvicorn + Jinja2 + static CSS
-- Current scope: Stage 11/post-MVP Single Generation UX polish
+- Current scope: post-Stage-11 product UI cleanup; per-generation cost estimate implemented; balance endpoint still unresolved
 - Paid generation and `.env` guardrails
 - Changed files and verification commands/results
 

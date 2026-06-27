@@ -61,6 +61,7 @@ def main() -> int:
                 "scripts/check_stage9_batch_import_dry_run.py",
                 "scripts/check_cost_estimates.py",
                 "scripts/check_queue_history_cards.py",
+                "scripts/check_dragdrop_js_regression.py",
             ],
         ),
         run_check("stage10_night_mode", [str(PYTHON), "-u", "scripts/check_stage10_night_mode_dry_run.py"]),
@@ -69,6 +70,7 @@ def main() -> int:
         run_check("stage8_tabs_ui", [str(PYTHON), "-u", "scripts/check_stage8_tabs_ui.py"]),
         run_check("cost_estimates", [str(PYTHON), "-u", "scripts/check_cost_estimates.py"]),
         run_check("queue_history_cards", [str(PYTHON), "-u", "scripts/check_queue_history_cards.py"]),
+        run_check("dragdrop_js_regression", [str(PYTHON), "-u", "scripts/check_dragdrop_js_regression.py"]),
     ]
 
     if all(checks):

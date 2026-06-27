@@ -254,13 +254,16 @@ Safe route checks passed without paid/API calls:
 - Queue route: image/audio/video refs persisted and prompt normalized to `<@...>`.
 - Single Generation route: concrete-task worker dispatch occurred and prompt normalized to `<@...>`.
 
-Known open item for next session:
+Current cost and balance behavior:
 
 - Per-generation cost display is implemented.
 - The app prefers actual cost fields from Segmind response payloads when present.
+- Top bar balance reads Segmind credits through `https://api.segmind.com/v1/get-user-credits`.
+- Reference image upload timeout/retry was increased after real Single Generation failures timed out before Segmind submit.
+- Drag/drop regression check is included in Stage 11 final diagnostics.
 - Existing saved result/status payloads did not include cost, so the app falls back to official Seedance pricing estimates by model/resolution/aspect/duration.
 - User dashboard example `seedance-2.0-fast`, 4s, 480p showed about `$0.2273`; official pricing estimate is `~$0.2248`.
-- Account balance remains unavailable: read-only probes for obvious API-key balance/usage/credits endpoints on platform/cloud Segmind returned 404.
+- Account balance is available through the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`; dashboard billing endpoints still require JWT cookies and are not used.
 - Do not use private dashboard endpoints for balance without explicit user approval.
 - Top bar shows balance state under the EN/RU language switch; current value is `Unavailable` because no official balance endpoint is known.
 - Queue history cards are implemented and mirror Single Generation history cards.

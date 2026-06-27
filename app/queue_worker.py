@@ -478,7 +478,7 @@ def _process_queued_task_real(task: dict) -> dict:
     request_id = None
 
     try:
-        client = SegmindClient(model=model, timeout=180.0)
+        client = SegmindClient(model=model, timeout=600.0)
 
         refs_for_api = [item for item in refs if item.get("media_type") in (None, "image")]
         stored_reference_videos = [item.get("local_path") for item in refs if item.get("media_type") == "video" and item.get("local_path")]
@@ -498,7 +498,13 @@ def _process_queued_task_real(task: dict) -> dict:
 
             _log(f"task #{task_id}: upload reference {index}/{len(refs_for_api)}")
 
-            upload_response = client.upload_asset(local_path)
+            try:
+                upload_response = client.upload_asset(local_path)
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Reference upload timed out before Segmind submit. "
+                    "No Segmind request was created; retry or use smaller reference files."
+                ) from exc
 
             safe_role = str(item.get("role", "reference")).replace(" ", "_")
             (run_dir / f"upload_response_{safe_role}.json").write_text(

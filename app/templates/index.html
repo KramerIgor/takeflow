@@ -572,6 +572,16 @@
                     </div>
                   {% endif %}
 
+                  {% if item.processing_note %}
+                    <div class="history-path">
+                      <span class="label">Segmind</span>
+                      <span{% if item.processing_note_key %} data-i18n="{{ item.processing_note_key }}"{% endif %}>{{ item.processing_note }}</span>
+                      {% if item.request_id_preview %}
+                        <span class="mono">{{ item.request_id_preview }}</span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+
                   {% if item.error %}
                     <div class="queue-error">{{ item.error }}</div>
                   {% endif %}
@@ -1021,7 +1031,10 @@
           edit_prompt: "Редактировать промпт",
           edit_in_queue: "Редактировать в очереди",
           regenerate: "Перегенерировать",
-          remove_from_queue: "Удалить из очереди"
+          remove_from_queue: "Удалить из очереди",
+          segmind_uploading_refs: "Загружаются референсы перед отправкой в Segmind. В dashboard задача появится после отправки.",
+          segmind_preparing_submit: "Подготовка отправки в Segmind. В dashboard задача может появиться не сразу.",
+          segmind_submitted: "Отправлено в Segmind"
         },
         en: {}
       };
@@ -1301,50 +1314,6 @@
         renderRefs();
       }
 
-      function setQueueEditMode(taskId) {
-        editTaskInput.value = taskId || "";
-        updateQueueButton.hidden = !taskId;
-        cancelEditButton.hidden = !taskId;
-        addQueueButton.hidden = Boolean(taskId);
-        draftQueueButton.hidden = Boolean(taskId);
-        if (taskId) {
-          updateQueueButton.formAction = "/update-queued-task/" + encodeURIComponent(taskId);
-        } else {
-          updateQueueButton.formAction = "/add-to-queue";
-        }
-      }
-
-      function clearQueueEditMode() {
-        setQueueEditMode("");
-        attachedFiles.splice(0, attachedFiles.length);
-        existingRefs.splice(0, existingRefs.length);
-        syncFileInput();
-        syncExistingInputs();
-        renderRefs();
-      }
-
-      function applyQueueItem(item) {
-        form.elements.prompt.value = item.prompt || "";
-        form.elements.model.value = item.model || "seedance-2.0";
-        form.elements.duration.value = item.duration || "4";
-        form.elements.resolution.value = item.resolution || "480p";
-        form.elements.aspect_ratio.value = item.aspect_ratio || "16:9";
-        form.elements.seed.value = item.seed ?? -1;
-        form.elements.generate_audio.checked = Boolean(item.generate_audio);
-        form.elements.return_last_frame.checked = Boolean(item.return_last_frame);
-        attachedFiles.splice(0, attachedFiles.length);
-        existingRefs.splice(0, existingRefs.length);
-        for (const ref of item.refs || []) {
-          if (ref.local_path && ref.exists !== false) {
-            existingRefs.push(ref);
-          }
-        }
-        syncFileInput();
-        syncExistingInputs();
-        renderRefs();
-        setQueueEditMode(item.queue_task_id || "");
-      }
-
       function hideTokenMenu() {
         tokenMenu.hidden = true;
         tokenMenu.innerHTML = "";
@@ -1383,25 +1352,6 @@
       fileInput.addEventListener("change", function () {
         addFiles(fileInput.files);
       });
-      cancelEditButton.addEventListener("click", function () {
-        clearQueueEditMode();
-      });
-      document.addEventListener("click", function (event) {
-        const editButton = event.target.closest(".queue-edit-button");
-        if (!editButton) return;
-        const card = editButton.closest(".queue-history-card");
-        const dataNode = card ? card.querySelector(".history-item-data") : null;
-        if (!dataNode) return;
-        try {
-          const item = JSON.parse(dataNode.textContent);
-          applyQueueItem(item);
-          window.seedanceActivateTab("queue-workflow");
-          form.elements.prompt.focus();
-        } catch (error) {
-          return;
-        }
-      });
-
       for (const eventName of ["dragenter", "dragover"]) {
         dropzone.addEventListener(eventName, function (event) {
           event.preventDefault();
@@ -1697,6 +1647,52 @@
         renderRefs();
       }
 
+
+
+      function setQueueEditMode(taskId) {
+        editTaskInput.value = taskId || "";
+        updateQueueButton.hidden = !taskId;
+        cancelEditButton.hidden = !taskId;
+        addQueueButton.hidden = Boolean(taskId);
+        draftQueueButton.hidden = Boolean(taskId);
+        if (taskId) {
+          updateQueueButton.formAction = "/update-queued-task/" + encodeURIComponent(taskId);
+        } else {
+          updateQueueButton.formAction = "/add-to-queue";
+        }
+      }
+
+      function clearQueueEditMode() {
+        setQueueEditMode("");
+        attachedFiles.splice(0, attachedFiles.length);
+        existingRefs.splice(0, existingRefs.length);
+        syncFileInput();
+        syncExistingInputs();
+        renderRefs();
+      }
+
+      function applyQueueItem(item) {
+        promptField.value = item.prompt || "";
+        form.elements.model.value = item.model || "seedance-2.0";
+        form.elements.duration.value = item.duration || "4";
+        form.elements.resolution.value = item.resolution || "480p";
+        form.elements.aspect_ratio.value = item.aspect_ratio || "16:9";
+        form.elements.seed.value = item.seed ?? -1;
+        form.elements.generate_audio.checked = Boolean(item.generate_audio);
+        form.elements.return_last_frame.checked = Boolean(item.return_last_frame);
+        attachedFiles.splice(0, attachedFiles.length);
+        existingRefs.splice(0, existingRefs.length);
+        for (const ref of item.refs || []) {
+          if (ref.local_path && ref.exists !== false) {
+            existingRefs.push(ref);
+          }
+        }
+        syncFileInput();
+        syncExistingInputs();
+        renderRefs();
+        setQueueEditMode(item.queue_task_id || "");
+      }
+
       function showTokenMenu() {
         const refs = currentRefs();
         tokenMenu.innerHTML = "";
@@ -1747,6 +1743,25 @@
 
       fileInput.addEventListener("change", function () {
         addFiles(fileInput.files);
+      });
+
+      cancelEditButton.addEventListener("click", function () {
+        clearQueueEditMode();
+      });
+      document.addEventListener("click", function (event) {
+        const editButton = event.target.closest(".queue-edit-button");
+        if (!editButton) return;
+        const card = editButton.closest(".queue-history-card");
+        const dataNode = card ? card.querySelector(".history-item-data") : null;
+        if (!dataNode) return;
+        try {
+          const item = JSON.parse(dataNode.textContent);
+          applyQueueItem(item);
+          window.seedanceActivateTab("queue-workflow");
+          promptField.focus();
+        } catch (error) {
+          return;
+        }
       });
       promptField.addEventListener("keyup", maybeShowTokenMenu);
       promptField.addEventListener("click", hideTokenMenu);

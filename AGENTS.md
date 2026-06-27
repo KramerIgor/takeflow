@@ -95,6 +95,9 @@ Current product behavior:
 - Queue `Edit in queue` updates one still-queued item in place without changing its queue position.
 - Queue `Remove from queue` is available only for still-queued/unsubmitted items and does not delete generated files.
 - Queue numbering is human-readable: `Queue #N` groups and `N-M` item labels; technical task ids stay in debug details.
+- While reference images are uploading, a Single Generation can be `processing` before Segmind has a request id; History shows this pre-submit stage explicitly.
+- Reference image upload uses longer write/read timeouts and retries to reduce `WriteTimeout` failures before submit.
+- `scripts/check_dragdrop_js_regression.py` guards against queue-edit JavaScript leaking into Single Generation drag/drop code.
 
 
 ## Current storage structure

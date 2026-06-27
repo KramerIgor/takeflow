@@ -513,10 +513,29 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
     if not name:
         name = params.get("episode_name") or Path(task.get("run_dir") or "Single generation").name
 
+    processing_note = None
+    processing_note_key = None
+    request_id_preview = None
+    if task.get("status") == "processing":
+        if task.get("request_id"):
+            processing_note = "Submitted to Segmind"
+            processing_note_key = "segmind_submitted"
+            request_id_preview = f"{str(task.get('request_id'))[:12]}..."
+        elif refs:
+            processing_note = "Uploading references before Segmind submit. It may not appear in Segmind yet."
+            processing_note_key = "segmind_uploading_refs"
+        else:
+            processing_note = "Preparing Segmind submit. It may not appear in Segmind yet."
+            processing_note_key = "segmind_preparing_submit"
+
     return {
         "source": "db",
         "task_id": task.get("id"),
         "status": task.get("status"),
+        "request_id": task.get("request_id"),
+        "request_id_preview": request_id_preview,
+        "processing_note": processing_note,
+        "processing_note_key": processing_note_key,
         "name": name,
         "prompt": task.get("prompt") or params.get("prompt") or "",
         "model": task.get("model") or params.get("model"),

@@ -209,6 +209,8 @@ The Stage 11 baseline includes a small UI polish pass:
 - Completed/cancelled task history is collapsed in the UI only; tasks are not deleted or changed
 - Top bar balance shows Segmind credits from the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`
 - Queue history uses History-style cards; queued/unsubmitted items can be edited in place or removed from the queue
+- History explains the pre-submit processing stage while reference images are uploading before a Segmind request id exists
+- Drag/drop JavaScript is covered by `scripts/check_dragdrop_js_regression.py`
 
 Safe UI polish check:
 
@@ -238,8 +240,8 @@ Implemented and verified:
 - Prompt reference tokens are normalized to `<@filename>`.
 - EN/RU language switch exists for main UI labels.
 - Per-generation cost display is implemented. It prefers actual cost fields from Segmind response payloads and otherwise falls back to official Seedance pricing estimates.
-- Account balance endpoint was not found via documented/public API-key GET probes; UI shows this as unavailable instead of guessing.
-- Top bar shows `Balance: Unavailable` under the EN/RU switch, with RU translation.
+- Account balance is read from the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`.
+- Top bar shows the current balance under the EN/RU switch, with RU translation.
 - Queue history now uses the same card layout as Single Generation history: video preview, refs, settings, status, cost, folder link, Edit prompt and Regenerate.
 - Queue cards edit/regenerate into Single Generation, so only the selected queue item is regenerated.
 - Queue UI uses stable human labels `Queue #N` and item labels `N-M`; technical DB ids stay in Debug / files.

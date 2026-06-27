@@ -129,10 +129,25 @@ class SegmindClient:
             "content-type": "application/json",
         }
 
-        with httpx.Client(timeout=self.timeout) as client:
-            response = client.post(url, headers=headers, json={"data_urls": [data_url]})
+        timeout = httpx.Timeout(
+            connect=30.0,
+            read=max(float(self.timeout), 300.0),
+            write=max(float(self.timeout), 600.0),
+            pool=30.0,
+        )
+        last_timeout: httpx.TimeoutException | None = None
+        for attempt in range(1, 4):
+            try:
+                with httpx.Client(timeout=timeout) as client:
+                    response = client.post(url, headers=headers, json={"data_urls": [data_url]})
+                return self._parse_response(response)
+            except httpx.TimeoutException as exc:
+                last_timeout = exc
+                if attempt == 3:
+                    raise
+                time.sleep(2 * attempt)
 
-        return self._parse_response(response)
+        raise last_timeout or TimeoutError("Reference upload timed out.")
 
     @staticmethod
     def extract_uploaded_asset_url(response: SegmindResponse) -> str | None:

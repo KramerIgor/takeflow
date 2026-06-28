@@ -683,6 +683,9 @@
         <div class="chain-help">
           Required columns:
           <span class="mono">episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths</span>.
+          Optional continuation columns:
+          <span class="mono">continuation_group,continuation_index</span>.
+          Rows with the same continuation group are linked in CSV order: each next row waits for the previous task and uses its last_frame.png as a reference image.
           Use <span class="mono">;</span> to separate multiple reference paths.
         </div>
 
@@ -781,7 +784,7 @@
         <div class="grid small-grid">
           <label>
             Max tasks in this run
-            <input type="number" name="max_tasks" value="2" min="1" max="20">
+            <input type="number" name="max_tasks" value="50" min="1" max="50">
           </label>
         </div>
 

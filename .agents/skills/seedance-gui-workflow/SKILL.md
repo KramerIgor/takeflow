@@ -31,6 +31,7 @@ Default current work is post-Stage-11 product UI cleanup and cost/balance follow
 - Top bar balance reads Segmind credits through the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`.
 - Queue history uses Single Generation-style cards; edit/regenerate should target one selected item through Single Generation.
 - Queue labels should remain human-readable: `Queue #N` and `N-M`; DB ids belong in debug details.
+- CSV continuation uses optional `continuation_group,continuation_index` and must create queued tasks only; no paid generation starts during import.
 - Keep paid actions explicit and confirmed.
 
 ## Rules

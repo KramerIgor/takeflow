@@ -209,6 +209,7 @@ The Stage 11 baseline includes a small UI polish pass:
 - Completed/cancelled task history is collapsed in the UI only; tasks are not deleted or changed
 - Top bar balance shows Segmind credits from the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`
 - Queue history uses History-style cards; queued/unsubmitted items can be edited in place or removed from the queue
+- Batch CSV Import supports optional `continuation_group,continuation_index` columns; rows in the same group are linked so each next task waits for the previous task and uses its `last_frame.png` as a reference image
 - History explains the pre-submit processing stage while reference images are uploading before a Segmind request id exists
 - Drag/drop JavaScript is covered by `scripts/check_dragdrop_js_regression.py`
 

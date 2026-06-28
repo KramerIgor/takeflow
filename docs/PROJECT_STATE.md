@@ -96,6 +96,8 @@ Done:
 - reference_paths are split by semicolon.
 - reference_paths must point to existing image files with supported suffixes.
 - Batch import creates queued tasks only. It does not start paid generation.
+- Optional CSV columns `continuation_group,continuation_index` link rows in the same group into a sequential continuation chain.
+- In a CSV continuation group, the first row is independent; each next row receives `continuation_mode=last_frame_as_reference` and `parent_task_id` of the previous row.
 - Imported tasks use return_last_frame=True.
 - Imported task params include batch_import_id and batch_row_number.
 - first_frame_url is not used by the batch import path.
@@ -211,7 +213,7 @@ Done:
 - Queue tab is simplified for normal use; CSV import and Night Mode Safety Preview are advanced sections.
 - Paid queue buttons are visually separated and labeled with paid.
 - CSV and Night Mode preview actions are styled as safe preview actions.
-- Batch CSV Import includes the required columns and semicolon-separated reference_paths hint.
+- Batch CSV Import includes the required columns, optional continuation_group/continuation_index columns, and semicolon-separated reference_paths hint.
 - Night Mode Safety Preview explicitly says it is preview only and does not run the queue.
 - Queue / History shows active and recent tasks first, with completed/cancelled history collapsed.
 - No tasks are deleted and no task statuses are changed by this UI grouping.

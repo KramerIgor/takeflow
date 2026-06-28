@@ -127,6 +127,8 @@ Stage 9 CSV batch import is complete as a working baseline.
 
 Batch import creates queued tasks only and does not start paid generation.
 
+CSV rows can opt into continuation chaining with continuation_group and continuation_index. Rows in the same group are linked in CSV order; each child waits for the previous task and uses its last_frame.png as a reference image.
+
 The import path does not use first_frame_url.
 
 ## Related Stage 10 status

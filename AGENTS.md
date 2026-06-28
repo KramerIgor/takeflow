@@ -98,6 +98,8 @@ Current product behavior:
 - While reference images are uploading, a Single Generation can be `processing` before Segmind has a request id; History shows this pre-submit stage explicitly.
 - Reference image upload uses longer write/read timeouts and retries to reduce `WriteTimeout` failures before submit.
 - `scripts/check_dragdrop_js_regression.py` guards against queue-edit JavaScript leaking into Single Generation drag/drop code.
+- CSV batch import supports optional `continuation_group` and `continuation_index`; rows in the same group become dependent queue tasks using `last_frame_as_reference`.
+- Queue loop supports up to 50 tasks per paid run, enough for longer chained shot lists.
 
 
 ## Current storage structure

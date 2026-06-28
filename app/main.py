@@ -44,7 +44,7 @@ MODEL_CHOICES = [
     {"id": "seedance-2.0-fast", "label": "Seedance 2.0 Fast", "note": "Faster / cheaper variant"},
 ]
 
-DURATIONS = [4, 5, 6, 8, 10, 12, 15]
+DURATIONS = list(range(4, 16))
 RESOLUTIONS = ["480p", "720p", "1080p"]
 ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"]
 
@@ -936,7 +936,7 @@ def parse_generate_audio_value(value: str) -> bool:
 
 
 def parse_batch_csv_text(csv_text: str) -> dict:
-    lines = (csv_text or "").splitlines()
+    lines = (csv_text or "").lstrip("\ufeff").splitlines()
     if not lines:
         return {
             "rows": [],
@@ -1026,6 +1026,17 @@ def validate_batch_import_row(row: dict) -> tuple[dict | None, list[dict]]:
         generate_audio = False
         add_error("generate_audio", str(exc))
 
+    continuation_group = (raw.get("continuation_group") or "").strip()
+    continuation_index_text = (raw.get("continuation_index") or "").strip()
+    continuation_index = None
+    if continuation_index_text:
+        try:
+            continuation_index = int(continuation_index_text)
+        except ValueError:
+            add_error("continuation_index", "Continuation index must be an integer.")
+        if not continuation_group:
+            add_error("continuation_index", "Continuation index requires continuation_group.")
+
     reference_paths = []
     reference_paths_text = raw.get("reference_paths") or ""
     for item in reference_paths_text.split(";"):
@@ -1063,6 +1074,8 @@ def validate_batch_import_row(row: dict) -> tuple[dict | None, list[dict]]:
         "seed": seed,
         "generate_audio": generate_audio,
         "reference_paths": reference_paths,
+        "continuation_group": continuation_group,
+        "continuation_index": continuation_index,
     }, []
 
 
@@ -1127,9 +1140,18 @@ def create_batch_import_tasks(
         create_task_fn = create_task
 
     created_tasks = []
+    previous_task_by_group: dict[str, int] = {}
+    count_by_group: dict[str, int] = {}
+    continuation_link_count = 0
 
     for row in valid_rows:
         refs = refs_from_reference_paths(row["reference_paths"], row["row_number"])
+        continuation_group = (row.get("continuation_group") or "").strip()
+        continuation_index = row.get("continuation_index")
+        if continuation_group:
+            count_by_group[continuation_group] = count_by_group.get(continuation_group, 0) + 1
+            if continuation_index is None:
+                continuation_index = count_by_group[continuation_group]
         params = {
             "project_name": projects_module.get_active_project_name(),
             "project_dir": str(projects_module.get_active_project_dir()),
@@ -1152,6 +1174,15 @@ def create_batch_import_tasks(
             "batch_row_number": row["row_number"],
         }
 
+        if continuation_group:
+            params["continuation_chain_id"] = f"{batch_import_id}_{sanitize_folder_part(continuation_group, 'chain')}"
+            params["continuation_index"] = continuation_index
+            parent_task_id = previous_task_by_group.get(continuation_group)
+            if parent_task_id is not None:
+                params["continuation_mode"] = "last_frame_as_reference"
+                params["parent_task_id"] = parent_task_id
+                continuation_link_count += 1
+
         task_id = create_task_fn(
             model=row["model"],
             prompt=row["prompt"],
@@ -1159,6 +1190,9 @@ def create_batch_import_tasks(
             refs=refs,
             status="queued",
         )
+
+        if continuation_group:
+            previous_task_by_group[continuation_group] = task_id
 
         created_tasks.append(
             {
@@ -1172,6 +1206,8 @@ def create_batch_import_tasks(
     return {
         "batch_import_id": batch_import_id,
         "created_tasks": created_tasks,
+        "continuation_group_count": len(count_by_group),
+        "continuation_link_count": continuation_link_count,
     }
 
 
@@ -1805,6 +1841,8 @@ async def batch_import(
             "batch_import_id": batch_import_id,
             "created_count": len(created_task_ids),
             "created_task_ids": created_task_ids,
+            "continuation_group_count": batch_result.get("continuation_group_count", 0),
+            "continuation_link_count": batch_result.get("continuation_link_count", 0),
         }
     )
 
@@ -2289,8 +2327,8 @@ def start_queue_loop(
     if max_tasks < 1:
         max_tasks = 1
 
-    if max_tasks > 20:
-        max_tasks = 20
+    if max_tasks > 50:
+        max_tasks = 50
 
     stale_cleanup = cleanup_processing_without_request_id()
     auto_recovery = auto_recover_existing_requests()

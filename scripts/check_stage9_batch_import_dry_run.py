@@ -49,6 +49,25 @@ def check_parser_and_validation():
             ]
         )
         valid = main.parse_and_validate_batch_csv(valid_csv)
+        valid_with_bom = main.parse_and_validate_batch_csv("\ufeff" + valid_csv)
+
+        chain_header = "episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths,continuation_group,continuation_index"
+        chain_csv = "\n".join(
+            [
+                chain_header,
+                f"Episode_01,Shot_001,Prompt A,seedance-2.0-fast,8,480p,16:9,-1,true,{ref_a},chain_a,1",
+                f"Episode_01,Shot_002,Prompt B,seedance-2.0-fast,13,480p,16:9,-1,true,{ref_b},chain_a,2",
+            ]
+        )
+        valid_chain = main.parse_and_validate_batch_csv(chain_csv)
+        invalid_chain_index = main.parse_and_validate_batch_csv(
+            "\n".join(
+                [
+                    chain_header,
+                    f"Episode_01,Shot_001,Prompt A,seedance-2.0-fast,8,480p,16:9,-1,true,{ref_a},chain_a,nope",
+                ]
+            )
+        )
 
         missing_header = main.parse_and_validate_batch_csv("prompt,model\nPrompt A,seedance-2.0-fast")
         empty_prompt = main.parse_and_validate_batch_csv(make_csv(["Episode_01,Scene_001, ,seedance-2.0-fast,4,480p,16:9,-1,false,"]))
@@ -64,6 +83,7 @@ def check_parser_and_validation():
 
         return [
             assert_ok("valid_csv_with_2_rows_parses_successfully", len(valid["valid_rows"]) == 2 and not valid["errors"]),
+            assert_ok("valid_csv_with_utf8_bom_parses_successfully", len(valid_with_bom["valid_rows"]) == 2 and not valid_with_bom["errors"]),
             assert_ok("missing_required_headers_returns_error", has_error(missing_header, "header")),
             assert_ok("empty_prompt_returns_row_error", has_error(empty_prompt, "prompt")),
             assert_ok("invalid_model_returns_row_error", has_error(invalid_model, "model")),
@@ -74,6 +94,9 @@ def check_parser_and_validation():
             assert_ok("invalid_generate_audio_returns_row_error", has_error(invalid_audio, "generate_audio")),
             assert_ok("missing_reference_path_returns_row_error", has_error(missing_ref, "reference_paths")),
             assert_ok("valid_reference_paths_split_by_semicolon", valid_refs == [str(ref_a), str(ref_b)]),
+            assert_ok("valid_continuation_csv_parses", len(valid_chain["valid_rows"]) == 2 and not valid_chain["errors"]),
+            assert_ok("continuation_duration_13_is_allowed", valid_chain["valid_rows"][1]["duration"] == 13),
+            assert_ok("invalid_continuation_index_returns_error", has_error(invalid_chain_index, "continuation_index")),
         ]
 
 
@@ -91,6 +114,13 @@ async def check_route_modes_without_db_pollution():
             [
                 f"Episode_01,Scene_001,Prompt A,seedance-2.0-fast,4,480p,16:9,-1,false,{ref}",
                 "Episode_01,Scene_002,Prompt B,seedance-2.0,5,720p,9:16,42,true,",
+            ]
+        )
+        chain_csv_text = "\n".join(
+            [
+                "episode_name,scene_name,prompt,model,duration,resolution,aspect_ratio,seed,generate_audio,reference_paths,continuation_group,continuation_index",
+                f"Episode_Chain,Shot_001,Prompt A,seedance-2.0-fast,8,480p,21:9,-1,true,{ref},chain_a,1",
+                f"Episode_Chain,Shot_002,Prompt B,seedance-2.0-fast,13,480p,21:9,-1,true,{ref},chain_a,2",
             ]
         )
 
@@ -137,6 +167,11 @@ async def check_route_modes_without_db_pollution():
                 import_mode="confirm",
                 csv_file=FakeUpload(csv_text),
             )
+            chain_response = await main.batch_import(
+                request=None,
+                import_mode="confirm",
+                csv_file=FakeUpload(chain_csv_text),
+            )
         finally:
             main.create_task = originals["create_task"]
             main.base_context = originals["base_context"]
@@ -146,15 +181,19 @@ async def check_route_modes_without_db_pollution():
 
     params = [call["params"] for call in created_calls]
     all_payload_text = repr(params)
+    chain_params = params[2:]
 
     return [
         assert_ok("preview_mode_creates_no_tasks", preview_call_count == 0),
-        assert_ok("confirm_mode_creates_expected_queued_task_calls", len(created_calls) == 2 and all(call["status"] == "queued" for call in created_calls)),
+        assert_ok("confirm_mode_creates_expected_queued_task_calls", len(created_calls) == 4 and all(call["status"] == "queued" for call in created_calls)),
         assert_ok("created_task_params_return_last_frame_true", all(item.get("return_last_frame") is True for item in params)),
         assert_ok("created_task_params_include_batch_import_id", all(item.get("batch_import_id") for item in params)),
-        assert_ok("created_task_params_include_batch_row_number", [item.get("batch_row_number") for item in params] == [2, 3]),
+        assert_ok("created_task_params_include_batch_row_number", [item.get("batch_row_number") for item in params] == [2, 3, 2, 3]),
+        assert_ok("continuation_csv_first_task_has_no_parent", chain_params[0].get("continuation_chain_id") and not chain_params[0].get("parent_task_id")),
+        assert_ok("continuation_csv_second_task_uses_previous_parent", chain_params[1].get("continuation_mode") == "last_frame_as_reference" and chain_params[1].get("parent_task_id") == 902),
+        assert_ok("continuation_csv_report_counts_links", chain_response["context"]["batch_import_report"]["continuation_link_count"] == 1),
         assert_ok("first_frame_url_absent_everywhere", "first_frame_url" not in all_payload_text),
-        assert_ok("new_paid_submit_started_false", preview_response["context"]["batch_import_report"]["new_paid_submit_started"] is False and confirm_response["context"]["batch_import_report"]["new_paid_submit_started"] is False),
+        assert_ok("new_paid_submit_started_false", preview_response["context"]["batch_import_report"]["new_paid_submit_started"] is False and confirm_response["context"]["batch_import_report"]["new_paid_submit_started"] is False and chain_response["context"]["batch_import_report"]["new_paid_submit_started"] is False),
     ]
 
 

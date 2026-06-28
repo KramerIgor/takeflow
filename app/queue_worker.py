@@ -229,6 +229,15 @@ def _log(message: str) -> None:
     except (BrokenPipeError, OSError):
         pass
 
+
+def _is_retryable_pre_submit_error(error_text: str) -> bool:
+    retryable_markers = (
+        "Reference upload timed out before Segmind submit",
+        "Reference upload failed with status 5",
+    )
+    return any(marker in error_text for marker in retryable_markers)
+
+
 def _to_windows_path(path_value: str | None) -> str | None:
     if not path_value:
         return None
@@ -778,26 +787,34 @@ def _process_queued_task_real(task: dict) -> dict:
             encoding="utf-8",
         )
 
-        status_to_set = "recoverable" if request_id else "failed"
+        retryable_pre_submit = request_id is None and _is_retryable_pre_submit_error(error_text)
+        status_to_set = "recoverable" if request_id else ("queued" if retryable_pre_submit else "failed")
+        result_status = "failed" if retryable_pre_submit else status_to_set
+        result_reason = "retryable_pre_submit_failure" if retryable_pre_submit else None
 
         if status_to_set == "recoverable":
             _log(
                 f"task #{task_id}: marked as recoverable because request_id exists | "
                 f"request_id={request_id}"
             )
+        elif retryable_pre_submit:
+            _log(
+                f"task #{task_id}: left queued for retry because failure happened before Segmind submit"
+            )
 
-        update_task_fields(
-            task_id,
-            status=status_to_set,
-            completed_at=completed_at,
-            elapsed_total_seconds=elapsed_total_seconds,
-            error=error_text,
-        )
+        update_fields = {
+            "status": status_to_set,
+            "completed_at": None if retryable_pre_submit else completed_at,
+            "started_at": None if retryable_pre_submit else started_at,
+            "elapsed_total_seconds": elapsed_total_seconds,
+            "error": error_text,
+        }
+        update_task_fields(task_id, **update_fields)
 
-        return {
+        result = {
             "processed": True,
             "task_id": task_id,
-            "status": status_to_set,
+            "status": result_status,
             "mode": "real_paid_generation",
             "request_id": request_id,
             "run_dir": str(run_dir),
@@ -805,6 +822,10 @@ def _process_queued_task_real(task: dict) -> dict:
             "error": error_text,
             "elapsed_total_seconds": elapsed_total_seconds,
         }
+        if result_reason:
+            result["reason"] = result_reason
+            result["db_status"] = status_to_set
+        return result
 
 
 def process_queue_loop(

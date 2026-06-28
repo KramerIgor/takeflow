@@ -106,7 +106,7 @@ def check_route_preview() -> None:
 
     captured = {}
 
-    def fake_list_tasks(limit=1000):
+    def fake_list_tasks(limit=1000, **kwargs):
         return fake_tasks()
 
     def fake_base_context(request, **kwargs):

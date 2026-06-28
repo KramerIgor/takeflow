@@ -289,8 +289,14 @@ def _download_file(url: str, path: Path) -> None:
     _log(f"download completed: {path.stat().st_size} bytes")
 
 
-def process_next_queued_task_dry_run() -> dict:
-    task = get_next_queued_task()
+def _get_next_queued_task_for_project(project_name: str | None, project_dir: str | None) -> dict | None:
+    if project_name or project_dir:
+        return get_next_queued_task(project_name=project_name, project_dir=project_dir)
+    return get_next_queued_task()
+
+
+def process_next_queued_task_dry_run(*, project_name: str | None = None, project_dir: str | None = None) -> dict:
+    task = _get_next_queued_task_for_project(project_name, project_dir)
 
     if task is None:
         _log("dry-run: no queued tasks")
@@ -418,8 +424,8 @@ def process_queued_task_real_by_id(task_id: int) -> dict:
     return _process_queued_task_real(task)
 
 
-def process_next_queued_task_real() -> dict:
-    task = get_next_queued_task()
+def process_next_queued_task_real(*, project_name: str | None = None, project_dir: str | None = None) -> dict:
+    task = _get_next_queued_task_for_project(project_name, project_dir)
 
     if task is None:
         _log("real worker: no queued tasks")
@@ -796,6 +802,8 @@ def process_queue_loop(
     dry_run: bool,
     max_tasks: int = 1,
     stop_on_failure: bool = True,
+    project_name: str | None = None,
+    project_dir: str | None = None,
 ) -> dict:
     if max_tasks < 1:
         max_tasks = 1
@@ -813,9 +821,9 @@ def process_queue_loop(
         _log(f"queue loop item {index}/{max_tasks}: checking next queued task")
 
         if dry_run:
-            result = process_next_queued_task_dry_run()
+            result = process_next_queued_task_dry_run(project_name=project_name, project_dir=project_dir)
         else:
-            result = process_next_queued_task_real()
+            result = process_next_queued_task_real(project_name=project_name, project_dir=project_dir)
 
         if result.get("processed") is False:
             _log(f"queue loop item {index}/{max_tasks}: stop | reason={result.get('reason')}")

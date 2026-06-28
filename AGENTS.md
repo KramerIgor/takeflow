@@ -100,6 +100,7 @@ Current product behavior:
 - `scripts/check_dragdrop_js_regression.py` guards against queue-edit JavaScript leaking into Single Generation drag/drop code.
 - CSV batch import supports optional `continuation_group` and `continuation_index`; rows in the same group become dependent queue tasks using `last_frame_as_reference`.
 - Queue loop supports up to 50 tasks per paid run, enough for longer chained shot lists.
+- History, Queue, cleanup/recovery, Night Mode preview, and Start Queue Loop are scoped to the active project.
 
 
 ## Current storage structure

@@ -112,6 +112,63 @@ def create_task(
         return int(cursor.lastrowid)
 
 
+def _decode_task_row(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    data["params"] = json.loads(data.pop("params_json"))
+    data["refs"] = json.loads(data.pop("refs_json"))
+    return data
+
+
+def _same_path(left: str | Path, right: str | Path) -> bool:
+    try:
+        return Path(left).resolve() == Path(right).resolve()
+    except Exception:
+        return str(left) == str(right)
+
+
+def _path_inside(path_value: str | None, base_value: str | Path | None) -> bool:
+    if not path_value or not base_value:
+        return False
+
+    try:
+        return Path(path_value).resolve().is_relative_to(Path(base_value).resolve())
+    except Exception:
+        return False
+
+
+def task_matches_project(
+    task: dict[str, Any],
+    *,
+    project_name: str | None = None,
+    project_dir: str | Path | None = None,
+) -> bool:
+    project_name = str(project_name or "").strip()
+    project_dir_text = str(project_dir or "").strip()
+
+    if not project_name and not project_dir_text:
+        return True
+
+    params = task.get("params") if isinstance(task.get("params"), dict) else {}
+    task_project_name = str(params.get("project_name") or params.get("active_project_name") or "").strip()
+    task_project_dir = str(params.get("project_dir") or params.get("active_project_dir") or "").strip()
+
+    if project_name and task_project_name:
+        return task_project_name == project_name
+
+    if project_dir_text and task_project_dir:
+        return _same_path(task_project_dir, project_dir_text)
+
+    if task_project_name or task_project_dir:
+        return False
+
+    if project_dir_text:
+        for path_value in (task.get("run_dir"), task.get("output_path")):
+            if _path_inside(path_value, project_dir_text):
+                return True
+
+    return False
+
+
 def get_task(task_id: int) -> dict[str, Any] | None:
     with get_connection() as conn:
         row = conn.execute(
@@ -122,53 +179,70 @@ def get_task(task_id: int) -> dict[str, Any] | None:
     if row is None:
         return None
 
-    data = dict(row)
-    data["params"] = json.loads(data.pop("params_json"))
-    data["refs"] = json.loads(data.pop("refs_json"))
-    return data
+    return _decode_task_row(row)
 
 
-def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
+def list_tasks(
+    limit: int = 50,
+    *,
+    project_name: str | None = None,
+    project_dir: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    filtered = bool(project_name or project_dir)
+
+    with get_connection() as conn:
+        if filtered:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM generation_tasks
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM generation_tasks
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+    result = []
+    for row in rows:
+        data = _decode_task_row(row)
+        if filtered and not task_matches_project(data, project_name=project_name, project_dir=project_dir):
+            continue
+        result.append(data)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
+def get_next_queued_task(
+    *,
+    project_name: str | None = None,
+    project_dir: str | Path | None = None,
+) -> dict[str, Any] | None:
     with get_connection() as conn:
         rows = conn.execute(
             """
             SELECT *
             FROM generation_tasks
-            ORDER BY id DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-
-    result = []
-    for row in rows:
-        data = dict(row)
-        data["params"] = json.loads(data.pop("params_json"))
-        data["refs"] = json.loads(data.pop("refs_json"))
-        result.append(data)
-
-    return result
-
-
-def get_next_queued_task() -> dict[str, Any] | None:
-    with get_connection() as conn:
-        row = conn.execute(
-            """
-            SELECT *
-            FROM generation_tasks
             WHERE status = 'queued'
             ORDER BY id ASC
-            LIMIT 1
             """
-        ).fetchone()
+        ).fetchall()
 
-    if row is None:
-        return None
+    for row in rows:
+        data = _decode_task_row(row)
+        if task_matches_project(data, project_name=project_name, project_dir=project_dir):
+            return data
 
-    data = dict(row)
-    data["params"] = json.loads(data.pop("params_json"))
-    data["refs"] = json.loads(data.pop("refs_json"))
-    return data
+    return None
 
 
 def update_task_status(task_id: int, status: str, error: str | None = None) -> None:

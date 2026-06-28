@@ -273,7 +273,7 @@ def sanitize_reference_filename(filename: str, fallback: str) -> str:
 
 def single_generation_default_name() -> str:
     existing_count = 0
-    for task in list_tasks(limit=10000):
+    for task in active_project_tasks(limit=10000):
         params = task.get("params") or {}
         if params.get("mode") in SINGLE_GENERATION_MODES:
             existing_count += 1
@@ -298,6 +298,16 @@ def project_context() -> dict:
         "projects": projects_module.list_projects(root=output_root),
     }
 
+
+def active_project_task_filter() -> dict:
+    return {
+        "project_name": projects_module.get_active_project_name(),
+        "project_dir": str(projects_module.get_active_project_dir()),
+    }
+
+
+def active_project_tasks(limit: int = 1000) -> list[dict]:
+    return list_tasks(limit=limit, **active_project_task_filter())
 
 
 def output_preview_url_for_path(output_path: str | None) -> tuple[str | None, str | None]:
@@ -378,7 +388,7 @@ def last_frame_view_for_task(task: dict) -> dict:
 
 def queue_tasks_for_view():
     all_tasks = []
-    for task in list_tasks(limit=1000):
+    for task in active_project_tasks(limit=1000):
         params = task.get("params") or {}
         if params.get("mode") in SINGLE_GENERATION_MODES:
             continue
@@ -648,7 +658,7 @@ def single_generation_history_for_view(limit: int = 40) -> list[dict]:
     items = []
     seen_run_dirs = set()
 
-    for task in list_tasks(limit=1000):
+    for task in active_project_tasks(limit=1000):
         item = single_generation_history_item_from_task(task)
         if not item:
             continue
@@ -713,7 +723,7 @@ def base_context(
     return context
 
 def cleanup_processing_without_request_id(limit: int = 20) -> dict:
-    tasks = list_tasks(limit=1000)
+    tasks = active_project_tasks(limit=1000)
 
     candidates = [
         task for task in tasks
@@ -741,7 +751,7 @@ def cleanup_processing_without_request_id(limit: int = 20) -> dict:
 
 
 def auto_recover_existing_requests(limit: int = 20) -> dict:
-    tasks = list_tasks(limit=1000)
+    tasks = active_project_tasks(limit=1000)
 
     candidates = [
         task for task in tasks
@@ -1227,7 +1237,7 @@ def build_night_mode_preview_plan(
     tasks: list[dict] | None = None,
 ) -> dict:
     if tasks is None:
-        tasks = list_tasks(limit=1000)
+        tasks = active_project_tasks(limit=1000)
 
     queued_tasks = [task for task in tasks if task.get("status") == "queued"]
     selected_tasks = queued_tasks[:max_tasks]
@@ -2337,6 +2347,7 @@ def start_queue_loop(
         dry_run=False,
         max_tasks=max_tasks,
         stop_on_failure=True,
+        **active_project_task_filter(),
     )
 
     result["auto_recovery"] = auto_recovery
@@ -2431,7 +2442,7 @@ def health():
         "default_model": SEGMIND_MODEL,
         "available_models": [item["id"] for item in MODEL_CHOICES],
         "output_dir": str(projects_module.get_active_project_dir()),
-        "queue_tasks_count": len(list_tasks(limit=1000)),
+        "queue_tasks_count": len(active_project_tasks(limit=1000)),
     }
 
 

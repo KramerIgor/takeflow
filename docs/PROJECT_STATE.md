@@ -215,7 +215,7 @@ Done:
 - CSV and Night Mode preview actions are styled as safe preview actions.
 - Batch CSV Import includes the required columns, optional continuation_group/continuation_index columns, and semicolon-separated reference_paths hint.
 - Night Mode Safety Preview explicitly says it is preview only and does not run the queue.
-- Queue / History shows active and recent tasks first, with completed/cancelled history collapsed.
+- Queue / History shows active and recent tasks for the active project only, with completed/cancelled history collapsed.
 - No tasks are deleted and no task statuses are changed by this UI grouping.
 
 Safe UI polish check:

@@ -67,6 +67,7 @@ def main_test() -> int:
     b_history_prompt = f"PROJECT_SCOPE_B_HISTORY_{suffix}"
     a_queue_prompt = f"PROJECT_SCOPE_A_QUEUE_{suffix}"
     b_queue_prompt = f"PROJECT_SCOPE_B_QUEUE_{suffix}"
+    b_once_prompt = f"PROJECT_SCOPE_B_ONCE_{suffix}"
 
     try:
         create_project(project_a)
@@ -76,21 +77,42 @@ def main_test() -> int:
         b_history_id = make_task(project_b, project_b_dir, b_history_prompt, "single_generation_paid", "completed")
         a_queue_id = make_task(project_a, project_a_dir, a_queue_prompt, "queued_no_generation_yet", "queued")
         b_queue_id = make_task(project_b, project_b_dir, b_queue_prompt, "queued_no_generation_yet", "queued")
-        created_task_ids.extend([a_history_id, b_history_id, a_queue_id, b_queue_id])
+        b_once_id = make_task(project_b, project_b_dir, b_once_prompt, "queued_no_generation_yet", "queued")
+        created_task_ids.extend([a_history_id, b_history_id, a_queue_id, b_queue_id, b_once_id])
 
         client = TestClient(main.app)
 
         set_active_project(project_a)
         history_a = main.single_generation_history_for_view(limit=20)
-        queue_a, _ = main.queue_tasks_for_view()
+        queue_a, _, _ = main.queue_tasks_for_view()
         next_a = get_next_queued_task(**main.active_project_task_filter())
         html_a = client.get("/").text
 
         set_active_project(project_b)
         history_b = main.single_generation_history_for_view(limit=20)
-        queue_b, _ = main.queue_tasks_for_view()
+        queue_b, _, _ = main.queue_tasks_for_view()
         next_b = get_next_queued_task(**main.active_project_task_filter())
         html_b = client.get("/").text
+
+        once_calls = []
+        original_once_worker = main.process_next_queued_task_real
+
+        def fake_once_worker(**kwargs):
+            once_calls.append(kwargs)
+            return {
+                "processed": False,
+                "reason": "fake_worker_no_paid_generation",
+                "new_paid_submit_started": False,
+            }
+
+        main.process_next_queued_task_real = fake_once_worker
+        try:
+            once_response = client.post("/start-queue-once")
+        finally:
+            main.process_next_queued_task_real = original_once_worker
+
+        a_queue_after_once = get_task(a_queue_id)
+        b_queue_after_once = get_task(b_queue_id)
 
         loop_b = process_queue_loop(
             dry_run=True,
@@ -110,6 +132,10 @@ def main_test() -> int:
             expect("html_b_excludes_project_a_prompts", a_history_prompt not in html_b and a_queue_prompt not in html_b),
             expect("next_queued_task_respects_project_a", next_a and int(next_a["id"]) == a_queue_id),
             expect("next_queued_task_respects_project_b", next_b and int(next_b["id"]) == b_queue_id),
+            expect("queue_once_route_passes_active_project_filter", once_response.status_code == 200 and once_calls and once_calls[0].get("project_name") == project_b),
+            expect("queue_once_route_started_no_paid_generation", "fake_worker_no_paid_generation" in once_response.text or once_calls),
+            expect("project_a_queue_left_queued_after_once", a_queue_after_once and a_queue_after_once.get("status") == "queued"),
+            expect("project_b_queue_left_queued_after_fake_once", b_queue_after_once and b_queue_after_once.get("status") == "queued"),
             expect("queue_loop_processes_only_active_project_b", loop_b.get("processed_count") == 1 and loop_b.get("results", [{}])[0].get("task_id") == b_queue_id),
             expect("project_a_queue_left_queued", a_queue_after_loop and a_queue_after_loop.get("status") == "queued"),
             expect("project_b_queue_processed", b_queue_after_loop and b_queue_after_loop.get("status") == "completed"),

@@ -765,21 +765,35 @@
       <h2 data-i18n="queue_controls">Queue Controls</h2>
       <p class="muted" data-i18n="queue_controls_hint">Run queued tasks when you are ready. Paid actions always ask for confirmation.</p>
 
-      <form method="post" action="/start-queue-once" class="paid-action-block">
-        <div class="actions">
-          <button
-            class="paid-button"
-            type="submit"
-            onclick="return confirm('This will start a paid Segmind generation for the next queued task. Continue?');"
-          >
-            Start Queue (paid)
-          </button>
-          <span class="hint">Paid action. Processes only the next queued task.</span>
+      {% if queue_overall_summary.total_count %}
+        <div class="queue-run-summary">
+          <div>
+            <span class="label">Queue progress</span>
+            <strong>{{ queue_overall_summary.progress_label }}</strong>
+          </div>
+          <div>
+            <span class="label">Estimated total cost</span>
+            <strong>{{ queue_overall_summary.total_cost_label or "unknown" }}</strong>
+          </div>
+          <div>
+            <span class="label">Status</span>
+            <span class="mono">{{ queue_overall_summary.completed_count }} completed · {{ queue_overall_summary.processing_count }} processing · {{ queue_overall_summary.queued_count }} queued</span>
+          </div>
         </div>
-      </form>
+      {% endif %}
 
-      <details class="advanced-run">
-        <summary>Advanced queue run</summary>
+      {% if queue_loop_state.show %}
+        <div class="notice compact-notice">
+          {% if queue_loop_state.active %}
+            Queue loop is running for {{ queue_loop_state.project_name }}. This page refreshes every {{ refresh_seconds }} seconds.
+          {% elif queue_loop_state.error %}
+            Queue loop stopped with error: {{ queue_loop_state.error }}
+          {% elif queue_loop_state.result %}
+            Queue loop finished: processed {{ queue_loop_state.result.processed_count }}, completed {{ queue_loop_state.result.completed_count }}, failed {{ queue_loop_state.result.failed_count }}.
+          {% endif %}
+        </div>
+      {% endif %}
+
       <form method="post" action="/start-queue-loop" class="queue-loop-form paid-action-block">
         <div class="grid small-grid">
           <label>
@@ -792,13 +806,28 @@
           <button
             class="paid-button"
             type="submit"
-            onclick="return confirm('This will start paid Segmind generations for queued tasks, up to the selected limit. Continue?');"
+            onclick="return confirm('This will start paid Segmind generations for queued tasks one by one in the background. Continue?');"
           >
-            Start Queue Loop (paid)
+            Start Full Queue (paid)
           </button>
-          <span class="hint">Processes queued tasks one by one. Stops on first failure. Use Night Mode Safety Preview below before starting paid queue work.</span>
+          <span class="hint">Runs queued tasks one by one in the background. Stops on first failure.</span>
         </div>
       </form>
+
+      <details class="advanced-run">
+        <summary>Run only next item</summary>
+        <form method="post" action="/start-queue-once" class="paid-action-block">
+          <div class="actions">
+            <button
+              class="paid-button"
+              type="submit"
+              onclick="return confirm('This will start a paid Segmind generation for only the next queued task. Continue?');"
+            >
+              Start Next Item (paid)
+            </button>
+            <span class="hint">Processes only the next queued task.</span>
+          </div>
+        </form>
       </details>
       </section>
 
@@ -970,7 +999,13 @@
         <div class="queue-history-grid">
           {% for batch in queue_batches %}
             <section class="queue-batch-section">
-              <h3 class="queue-batch-title" data-queue-label-en="{{ batch.queue_label }}" data-queue-label-ru="{{ batch.queue_label_ru }}">{{ batch.queue_label }}</h3>
+              <h3 class="queue-batch-title">
+                <span data-queue-label-en="{{ batch.queue_label }}" data-queue-label-ru="{{ batch.queue_label_ru }}">{{ batch.queue_label }}</span>
+                <span class="queue-batch-progress">{{ batch.summary.progress_label }}</span>
+                {% if batch.summary.total_cost_label %}
+                  <span class="queue-batch-cost">{{ batch.summary.total_cost_label }}</span>
+                {% endif %}
+              </h3>
               <div class="single-history-grid">
                 {% for task in batch.tasks %}
                   {{ queue_history_card(task) }}
@@ -997,6 +1032,14 @@
     </div>
   </div>
 
+
+  {% if has_processing_single_generation or has_active_queue_work %}
+    <script>
+      setTimeout(function () {
+        window.location.reload();
+      }, {{ refresh_seconds * 1000 }});
+    </script>
+  {% endif %}
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {

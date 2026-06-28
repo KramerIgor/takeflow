@@ -800,3 +800,52 @@ button:disabled {
   color: var(--accent);
   margin-right: 6px;
 }
+
+
+.queue-run-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.queue-run-summary strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+}
+
+.queue-batch-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.queue-batch-progress,
+.queue-batch-cost {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--soft);
+  background: #111722;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.queue-batch-cost {
+  color: var(--warn);
+}
+
+@media (max-width: 760px) {
+  .queue-run-summary {
+    grid-template-columns: 1fr;
+  }
+}

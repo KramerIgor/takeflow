@@ -101,6 +101,7 @@ Current product behavior:
 - CSV batch import supports optional `continuation_group` and `continuation_index`; rows in the same group become dependent queue tasks using `last_frame_as_reference`.
 - Queue loop supports up to 50 tasks per paid run, enough for longer chained shot lists.
 - History, Queue, cleanup/recovery, Night Mode preview, and Start Queue Loop are scoped to the active project.
+- Queue controls expose progress and estimated total queue cost; Start Full Queue launches the paid queue loop in a background thread and Start Next Item is the single-step action.
 
 
 ## Current storage structure

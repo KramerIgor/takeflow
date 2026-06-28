@@ -49,11 +49,14 @@ def main():
     )
 
     try:
-        tasks, batches = queue_tasks_for_view()
+        tasks, batches, summary = queue_tasks_for_view()
         html = TestClient(app).get("/").text
 
         checks = [
             expect("batches_available", isinstance(batches, list)),
+            expect("queue_overall_summary_visible", "Queue progress" in html and "Estimated total cost" in html),
+            expect("queue_batch_progress_visible", "queue-batch-progress" in html),
+            expect("queue_total_estimated_cost_visible", "~$" in html and "estimated" in html),
             expect("queue_labels_present", bool(batches) and all("queue_label" in batch for batch in batches)),
             expect("item_labels_present", bool(tasks) and all("queue_item_label" in task for task in tasks)),
             expect("history_card_macro_rendered", "queue-history-card" in html),

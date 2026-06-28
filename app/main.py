@@ -73,6 +73,18 @@ APP_TITLE = "Seedance"
 APP_SUBTITLE = "Local video generation workspace"
 BALANCE_CACHE_SECONDS = 60
 _segmind_balance_cache: dict[str, object] = {"expires_at": 0.0, "context": None}
+QUEUE_LOOP_REFRESH_SECONDS = 15
+_queue_loop_state_lock = threading.Lock()
+_queue_loop_state: dict[str, object] = {
+    "active": False,
+    "project_name": None,
+    "project_dir": None,
+    "max_tasks": None,
+    "started_at": None,
+    "finished_at": None,
+    "result": None,
+    "error": None,
+}
 
 
 def env_key_is_set() -> bool:
@@ -126,8 +138,39 @@ def cost_info_for_generation(summary: dict | None, *, model: str | None, params:
     )
 
 
+def cost_amount_from_info(cost_info: dict | None) -> float | None:
+    if not isinstance(cost_info, dict):
+        return None
+
+    for key in ("amount_usd", "cost", "price", "amount"):
+        value = cost_info.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            match = re.search(r"[-+]?\d+(?:\.\d+)?", value.replace(",", ""))
+            if match:
+                return float(match.group(0))
+
+    for item in cost_info.get("items") or []:
+        value = item.get("value") if isinstance(item, dict) else None
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            match = re.search(r"[-+]?\d+(?:\.\d+)?", value.replace(",", ""))
+            if match:
+                return float(match.group(0))
+
+    return None
+
+
 def cost_label_from_generation(summary: dict | None, *, model: str | None, params: dict | None, refs: list[dict] | None) -> str | None:
     return cost_label(cost_info_for_generation(summary, model=model, params=params, refs=refs))
+
+
+def format_queue_cost_total(amount: float | None) -> str | None:
+    if amount is None:
+        return None
+    return f"~${amount:.4f} estimated"
 
 
 def format_credit_amount(value: object) -> str | None:
@@ -310,6 +353,109 @@ def active_project_tasks(limit: int = 1000) -> list[dict]:
     return list_tasks(limit=limit, **active_project_task_filter())
 
 
+def queue_loop_state_snapshot() -> dict:
+    with _queue_loop_state_lock:
+        return dict(_queue_loop_state)
+
+
+def queue_loop_state_for_active_project() -> dict:
+    state = queue_loop_state_snapshot()
+    active_name = projects_module.get_active_project_name()
+    is_active_project = state.get("project_name") == active_name
+
+    return {
+        **state,
+        "is_current_project": is_active_project,
+        "show": bool(is_active_project and (state.get("active") or state.get("result") or state.get("error"))),
+    }
+
+
+def queue_loop_is_running() -> bool:
+    return bool(queue_loop_state_snapshot().get("active"))
+
+
+def mark_queue_loop_started(*, project_name: str, project_dir: str, max_tasks: int) -> None:
+    with _queue_loop_state_lock:
+        _queue_loop_state.update(
+            {
+                "active": True,
+                "project_name": project_name,
+                "project_dir": project_dir,
+                "max_tasks": max_tasks,
+                "started_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                "finished_at": None,
+                "result": None,
+                "error": None,
+            }
+        )
+
+
+def mark_queue_loop_finished(*, result: dict | None = None, error: str | None = None) -> None:
+    with _queue_loop_state_lock:
+        _queue_loop_state.update(
+            {
+                "active": False,
+                "finished_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                "result": result,
+                "error": error,
+            }
+        )
+
+
+def queue_batch_summary_for_tasks(tasks: list[dict]) -> dict:
+    total_count = len(tasks)
+    status_counts: dict[str, int] = {}
+    total_cost = 0.0
+    has_cost = False
+
+    ordered = sorted(tasks, key=lambda item: int(item.get("id") or 0))
+    for task in ordered:
+        status = str(task.get("status") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        amount = task.get("cost_amount_usd")
+        if isinstance(amount, (int, float)):
+            total_cost += float(amount)
+            has_cost = True
+
+    completed_count = status_counts.get("completed", 0)
+    processing_count = status_counts.get("processing", 0)
+    queued_count = status_counts.get("queued", 0)
+    failed_count = status_counts.get("failed", 0) + status_counts.get("recoverable", 0)
+    cancelled_count = status_counts.get("cancelled", 0)
+
+    processing_task = next((task for task in ordered if task.get("status") == "processing"), None)
+    next_queued_task = next((task for task in ordered if task.get("status") == "queued"), None)
+
+    if processing_task:
+        current_position = int(processing_task.get("queue_item_number") or (completed_count + 1))
+        progress_label = f"{current_position}/{total_count} processing"
+    elif next_queued_task and completed_count:
+        current_position = completed_count
+        progress_label = f"{completed_count}/{total_count} completed · next {next_queued_task.get('queue_item_number')}/{total_count} queued"
+    elif queued_count == total_count and total_count:
+        current_position = 0
+        progress_label = f"0/{total_count} queued"
+    elif failed_count:
+        current_position = completed_count
+        progress_label = f"{completed_count}/{total_count} completed · {failed_count} failed"
+    else:
+        current_position = completed_count
+        progress_label = f"{completed_count}/{total_count} completed" if total_count else "0/0"
+
+    return {
+        "total_count": total_count,
+        "completed_count": completed_count,
+        "processing_count": processing_count,
+        "queued_count": queued_count,
+        "failed_count": failed_count,
+        "cancelled_count": cancelled_count,
+        "current_position": current_position,
+        "progress_label": progress_label,
+        "total_cost_label": format_queue_cost_total(total_cost if has_cost else None),
+        "has_active_work": processing_count > 0 or queued_count > 0,
+    }
+
+
 def output_preview_url_for_path(output_path: str | None) -> tuple[str | None, str | None]:
     if not output_path:
         return None, None
@@ -435,7 +581,9 @@ def queue_tasks_for_view():
         task["task_mode"] = params.get("mode")
         task["is_batch_import"] = bool(params.get("batch_import_id") or params.get("batch_row_number"))
         task["refs_view"] = refs_view
-        task["cost_label"] = cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs_view)
+        cost_info = cost_info_for_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs_view)
+        task["cost_label"] = cost_label(cost_info)
+        task["cost_amount_usd"] = cost_amount_from_info(cost_info)
         task["can_edit_in_queue"] = task.get("status") == "queued"
         task["can_remove_from_queue"] = task.get("status") == "queued" and not task.get("request_id") and not task.get("output_path")
         task.update(last_frame_view_for_task(task))
@@ -458,7 +606,11 @@ def queue_tasks_for_view():
             batch_by_key[group_key] = batch
         batch_by_key[group_key]["tasks"].append(task)
 
-    return tasks, batches
+    for batch in batches:
+        batch["summary"] = queue_batch_summary_for_tasks(batch["tasks"])
+
+    overall_summary = queue_batch_summary_for_tasks(tasks)
+    return tasks, batches, overall_summary
 
 
 
@@ -688,8 +840,13 @@ def base_context(
     batch_import_report: dict | None = None,
     night_mode_report: dict | None = None,
 ):
-    queue_tasks, queue_batches = queue_tasks_for_view()
+    queue_tasks, queue_batches, queue_overall_summary = queue_tasks_for_view()
     single_history = single_generation_history_for_view()
+    queue_loop_state = queue_loop_state_for_active_project()
+    has_active_queue_work = bool(
+        queue_loop_state.get("active")
+        or any(item.get("status") == "processing" for item in queue_tasks)
+    )
 
     context = {
         "request": request,
@@ -714,6 +871,10 @@ def base_context(
         "night_mode_report": night_mode_report,
         "queue_tasks": queue_tasks,
         "queue_batches": queue_batches,
+        "queue_overall_summary": queue_overall_summary,
+        "queue_loop_state": queue_loop_state,
+        "has_active_queue_work": has_active_queue_work,
+        "refresh_seconds": QUEUE_LOOP_REFRESH_SECONDS,
         "single_history": single_history,
         "has_processing_single_generation": any(item.get("status") in {"queued", "processing"} for item in single_history[:20]),
     }
@@ -1914,7 +2075,7 @@ def night_mode_preview(
 def start_queue_once(request: Request):
     stale_cleanup = cleanup_processing_without_request_id()
     auto_recovery = auto_recover_existing_requests()
-    result = process_next_queued_task_real()
+    result = process_next_queued_task_real(**active_project_task_filter())
     result["stale_cleanup"] = stale_cleanup
     result["auto_recovery"] = auto_recovery
 
@@ -2329,10 +2490,25 @@ def recover_task(task_id: int, request: Request):
     )
 
 
+def run_queue_loop_background(*, project_filter: dict, max_tasks: int, stale_cleanup: dict, auto_recovery: dict) -> None:
+    try:
+        result = process_queue_loop(
+            dry_run=False,
+            max_tasks=max_tasks,
+            stop_on_failure=True,
+            **project_filter,
+        )
+        result["auto_recovery"] = auto_recovery
+        result["stale_cleanup"] = stale_cleanup
+        mark_queue_loop_finished(result=result)
+    except Exception as exc:
+        mark_queue_loop_finished(error=str(exc))
+
+
 @app.post("/start-queue-loop", response_class=HTMLResponse)
 def start_queue_loop(
     request: Request,
-    max_tasks: int = Form(2),
+    max_tasks: int = Form(50),
 ):
     if max_tasks < 1:
         max_tasks = 1
@@ -2340,46 +2516,44 @@ def start_queue_loop(
     if max_tasks > 50:
         max_tasks = 50
 
-    stale_cleanup = cleanup_processing_without_request_id()
-    auto_recovery = auto_recover_existing_requests()
-
-    result = process_queue_loop(
-        dry_run=False,
-        max_tasks=max_tasks,
-        stop_on_failure=True,
-        **active_project_task_filter(),
-    )
-
-    result["auto_recovery"] = auto_recovery
-    result["stale_cleanup"] = stale_cleanup
-
-    processed_count = result.get("processed_count", 0)
-    completed_count = result.get("completed_count", 0)
-    failed_count = result.get("failed_count", 0)
-    stopped_reason = result.get("stopped_reason")
-
-    if processed_count == 0:
-        recovered_count = result.get("auto_recovery", {}).get("completed_count", 0)
-
-        if recovered_count:
-            message = f"Auto-recovered {recovered_count} existing Segmind result(s). No new paid generation was started."
-        else:
-            message = "No queued tasks to process. No paid generation was started."
-    else:
-        message = (
-            f"Queue loop finished: processed {processed_count}, "
-            f"completed {completed_count}, failed {failed_count}."
+    project_filter = active_project_task_filter()
+    current_state = queue_loop_state_snapshot()
+    if current_state.get("active"):
+        active_project = current_state.get("project_name") or "another project"
+        message = f"Queue loop is already running for {active_project}. Wait for it to finish before starting another paid run."
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=message),
         )
 
-        if stopped_reason:
-            message += f" Stopped reason: {stopped_reason}."
+    stale_cleanup = cleanup_processing_without_request_id()
+    auto_recovery = auto_recover_existing_requests()
+    mark_queue_loop_started(
+        project_name=project_filter["project_name"],
+        project_dir=project_filter["project_dir"],
+        max_tasks=max_tasks,
+    )
+
+    thread = threading.Thread(
+        target=run_queue_loop_background,
+        kwargs={
+            "project_filter": project_filter,
+            "max_tasks": max_tasks,
+            "stale_cleanup": stale_cleanup,
+            "auto_recovery": auto_recovery,
+        },
+        daemon=True,
+    )
+    thread.start()
+
+    message = f"Queue loop started in background for up to {max_tasks} task(s). This page refreshes automatically."
 
     return templates.TemplateResponse(
         "index.html",
         base_context(
             request,
             message=message,
-            last_queue_run=result,
+            last_queue_run={"status": "started", "max_tasks": max_tasks, "processed": True},
         ),
     )
 

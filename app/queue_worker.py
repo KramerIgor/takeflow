@@ -216,8 +216,18 @@ def _write_status_json(run_dir: Path, status_data: dict) -> None:
 
 
 def _log(message: str) -> None:
-    print(f"[QUEUE] {message}", flush=True)
+    line = f"[QUEUE] {message}"
 
+    try:
+        with Path("/tmp/seedance_gui_queue_worker.log").open("a", encoding="utf-8") as log_file:
+            log_file.write(line + "\n")
+    except Exception:
+        pass
+
+    try:
+        print(line, flush=True)
+    except (BrokenPipeError, OSError):
+        pass
 
 def _to_windows_path(path_value: str | None) -> str | None:
     if not path_value:

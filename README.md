@@ -45,6 +45,10 @@ Current result structure:
       Episode_01_Scene_001_take_000002.mp4
       Episode_01_Scene_002_take_000001.mp4
 
+    C:\AI_OUTPUT\Psailor_kun\last_frames\
+      Episode_01_Scene_001_take_000001_last_frame.png
+      Episode_01_Scene_001_take_000002_last_frame.png
+
     C:\AI_OUTPUT\Psailor_kun\runs\
       Episode_01_Scene_001_take_000001\
         output.mp4
@@ -58,7 +62,9 @@ Current result structure:
 Rules:
 
 - videos/ is the main folder for final MP4 files.
+- last_frames/ is the main folder for final-frame PNG files with take-based names.
 - runs/ is the technical archive for each generation.
+- runs/<take>/last_frame.png is still kept for continuation chains and debugging.
 - The final filename includes episode, scene and take number.
 - Take numbers are counted separately per Episode + Scene.
 - Queued tasks keep the project that was active at Add to Queue time.

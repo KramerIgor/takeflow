@@ -37,6 +37,13 @@ def _allocate_run_dir_for_task(params: dict) -> Path:
     return Path(_take_paths_for_task(params)["run_dir"])
 
 
+def _shared_last_frame_path_for_run_dir(run_dir: Path) -> Path:
+    project_dir = run_dir.parent.parent
+    last_frames_dir = project_dir / "last_frames"
+    last_frames_dir.mkdir(parents=True, exist_ok=True)
+    return last_frames_dir / f"{run_dir.name}_last_frame.png"
+
+
 def _save_api_last_frame_if_present(result_data: dict, run_dir: Path) -> dict:
     candidate = extract_last_frame_candidate(result_data)
 
@@ -46,6 +53,8 @@ def _save_api_last_frame_if_present(result_data: dict, run_dir: Path) -> dict:
             "last_frame_source": None,
             "last_frame_url": None,
             "last_frame_path": None,
+            "last_frame_shared_path": None,
+            "last_frame_shared_windows_path": None,
             "last_frame_key_path": None,
             "last_frame_candidate_score": None,
             "last_frame_candidate_reason": None,
@@ -53,12 +62,16 @@ def _save_api_last_frame_if_present(result_data: dict, run_dir: Path) -> dict:
 
     last_frame_path = run_dir / "last_frame.png"
     _download_file(candidate.url, last_frame_path)
+    shared_last_frame_path = _shared_last_frame_path_for_run_dir(run_dir)
+    shutil.copy2(last_frame_path, shared_last_frame_path)
 
     return {
         "last_frame_found": True,
         "last_frame_source": "api",
         "last_frame_url": candidate.url,
         "last_frame_path": str(last_frame_path),
+        "last_frame_shared_path": str(shared_last_frame_path),
+        "last_frame_shared_windows_path": _to_windows_path(str(shared_last_frame_path)),
         "last_frame_key_path": candidate.key_path,
         "last_frame_candidate_score": candidate.score,
         "last_frame_candidate_reason": candidate.reason,

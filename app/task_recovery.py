@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 
 from app.db import get_task, update_task_fields, utc_now
-from app.queue_worker import _download_file, _extract_output_url, _to_windows_path, _write_status_json
+from app.queue_worker import _download_file, _extract_output_url, _save_api_last_frame_if_present, _to_windows_path, _write_status_json
 from app.segmind_client import SegmindClient
 from app.settings import OUTPUT_DIR
 
@@ -102,6 +102,7 @@ def recover_task_by_existing_request(task_id: int) -> dict:
 
         video_path = run_dir / "output.mp4"
         _download_file(video_url, video_path)
+        last_frame_info = _save_api_last_frame_if_present(result_response.data, run_dir)
 
         inference_time = None
         metrics = result_response.data.get("metrics") if isinstance(result_response.data, dict) else None
@@ -118,6 +119,7 @@ def recover_task_by_existing_request(task_id: int) -> dict:
             "video_size_bytes": video_path.stat().st_size,
             "recovered_at": utc_now(),
             "new_paid_submit": False,
+            **last_frame_info,
         }
 
         (run_dir / "recovery_summary.json").write_text(

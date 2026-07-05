@@ -2,7 +2,7 @@
 
 ## Project role
 
-This repository is a local WSL/Ubuntu GUI for generating anime videos through Segmind Seedance 2.0 / Seedance 2.0 Fast.
+This repository is the local Windows GUI for generating anime videos through Segmind Seedance 2.0 / Seedance 2.0 Fast.
 
 The project is not a generic API playground. The main goal is a practical local GUI with queue, project folders, episode/scene/take naming, continuation by last frame, batch import and night mode.
 
@@ -14,13 +14,23 @@ Current stage: product UI cleanup baseline after Stage 11.
 
 Active project is local runtime state in `data/active_project.json`; do not hardcode it in implementation.
 
-Project code path in WSL:
+Canonical working copy on Windows:
 
-    ~/seedance_gui
+    C:\Users\zerot\Desktop\Codex\Программист\seedance_gui_windows
+
+Do not work in the old WSL copy unless the user explicitly asks for migration or archaeology. The previous WSL path `/home/iokramer/seedance_gui` is no longer the active workspace.
 
 Output root:
 
-    /mnt/c/AI_OUTPUT
+    C:\AI_OUTPUT
+
+Desktop launcher:
+
+    C:\Users\zerot\Desktop\Seedance GUI.lnk
+
+Launcher script:
+
+    C:\Users\zerot\Desktop\Codex\Программист\SeedanceGuiLauncher.ps1
 
 GUI URL:
 
@@ -290,9 +300,9 @@ Stage 10 dry-run passed:
 
 Stage 11 packaging, startup instructions and final diagnostics are implemented as a working baseline.
 
-Startup script:
+Current Windows startup path:
 
-    scripts/start_gui.sh
+    C:\Users\zerot\Desktop\Seedance GUI.lnk
 
 Default GUI URL:
 
@@ -300,9 +310,9 @@ Default GUI URL:
 
 Final safe diagnostic command:
 
-    .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
+    .venv\Scripts\python.exe -u scripts\check_stage11_final_diagnostics.py
 
-The startup script launches Uvicorn only. It does not start queue processing by itself.
+The desktop launcher starts Uvicorn only. It does not start queue processing by itself.
 
 The final diagnostic command runs compile checks and safe dry-run checks. It does not start paid generation.
 
@@ -324,23 +334,23 @@ Batch, night mode and continuation chains require explicit user confirmation.
 
 ## Copyable command rule for ChatGPT
 
-When giving WSL terminal commands to the user, use one bash block only.
+When giving Windows terminal commands to the user, use one PowerShell block only.
 
-Markers must be inside the code block as bash comments:
+Markers must be inside the code block as PowerShell comments:
 
-    # 🟢 BEGIN_COPY
+    # BEGIN_COPY
     commands
-    # 🟢 END_COPY
+    # END_COPY
 
-If relevant output is needed, the command should print green output markers:
+If relevant output is needed, the command should print output markers:
 
-    printf '\033[32m🟢 BEGIN_COPY\033[0m\n'
+    Write-Host 'BEGIN_COPY'
     checks
-    printf '\033[32m🟢 END_COPY\033[0m\n'
+    Write-Host 'END_COPY'
 
-Do not put markdown triple-backticks inside bash heredocs. This previously broke copy/paste.
+Do not include markdown triple-backticks inside pasted command bodies. This previously broke copy/paste.
 
-Use set +e, not set -e.
+Prefer direct PowerShell commands in the Windows working copy. Avoid WSL commands and bash wrappers for normal development.
 
 ## When to use Codex
 
@@ -423,4 +433,3 @@ Additional Codex local skills live in `.agents/skills`:
 - `seedance-gui-context-compact`
 
 These skills are project-local. Do not copy their Seedance-specific paths, paid-generation rules, or roadmap into universal programmer skills.
-

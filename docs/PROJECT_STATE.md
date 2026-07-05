@@ -1,6 +1,22 @@
 # PROJECT_STATE.md — Seedance current state
 
-Updated after product UI cleanup.
+Updated after moving the active workspace to Windows.
+
+## Current canonical workspace
+
+Use the Windows copy for all normal development, verification and launches:
+
+    C:\Users\zerot\Desktop\Codex\Программист\seedance_gui_windows
+
+Desktop launcher:
+
+    C:\Users\zerot\Desktop\Seedance GUI.lnk
+
+Output root:
+
+    C:\AI_OUTPUT
+
+The old WSL copy `/home/iokramer/seedance_gui` is historical only. Do not edit or launch it unless the user explicitly asks for WSL migration or comparison.
 
 ## Completed
 
@@ -9,6 +25,7 @@ Stages 0–11 are complete.
 Stage 7 result structure is fixed:
 
     Project/videos/
+    Project/last_frames/
     Project/runs/
 
 The active project is stored in:
@@ -176,12 +193,12 @@ Stage 11 is superseded by the product UI cleanup baseline.
 
 Done:
 
-- Practical startup script:
-  scripts/start_gui.sh
+- Practical Windows startup:
+  C:\Users\zerot\Desktop\Seedance GUI.lnk
 - Default GUI URL remains:
   http://127.0.0.1:7860
-- Startup script launches Uvicorn only.
-- Startup script does not start queue processing by itself.
+- Desktop launcher starts Uvicorn only.
+- Desktop launcher does not start queue processing by itself.
 - Final safe diagnostics script:
   scripts/check_stage11_final_diagnostics.py
 - Final diagnostics run compile checks plus Stage 10, Stage 9 and Stage 8 dry-run checks.

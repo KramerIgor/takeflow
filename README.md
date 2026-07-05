@@ -1,14 +1,19 @@
 # Seedance
 
-Local WSL/Ubuntu GUI for Segmind Seedance 2.0 video generation.
+Local Windows GUI for Segmind Seedance 2.0 video generation.
 
 Current focus: product-facing local workspace with projects, single generation history, queue, CSV import and safe paid-action confirmations.
 
-Project code path:
-~/seedance_gui
+Canonical project code path:
+C:\Users\zerot\Desktop\Codex\Программист\seedance_gui_windows
 
 Windows output root:
-/mnt/c/AI_OUTPUT
+C:\AI_OUTPUT
+
+Desktop launcher:
+C:\Users\zerot\Desktop\Seedance GUI.lnk
+
+The old WSL copy is no longer the active workspace. Use this Windows copy for development, verification and launches unless migration from WSL is explicitly requested.
 
 Security:
 The Segmind API key is stored only in .env.
@@ -178,9 +183,13 @@ Dry-run passed:
 
 ## Stage 11 startup and diagnostics
 
-Start the GUI from the project root:
+Start the GUI through the desktop shortcut:
 
-    scripts/start_gui.sh
+    C:\Users\zerot\Desktop\Seedance GUI.lnk
+
+Or from the project root:
+
+    .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 7860
 
 Default URL:
 
@@ -188,15 +197,15 @@ Default URL:
 
 Optional port override:
 
-    PORT=7861 scripts/start_gui.sh
+    .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 7861
 
-The start script launches Uvicorn only. It does not start queue processing by itself.
+The launcher starts Uvicorn only. It does not start queue processing by itself.
 
 Final safe diagnostic command:
 
-    .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
-    .venv/bin/python -u scripts/check_cost_estimates.py
-    .venv/bin/python -u scripts/check_queue_history_cards.py
+    .venv\Scripts\python.exe -u scripts\check_stage11_final_diagnostics.py
+    .venv\Scripts\python.exe -u scripts\check_cost_estimates.py
+    .venv\Scripts\python.exe -u scripts\check_queue_history_cards.py
 
 The diagnostic command runs compile checks and safe dry-run checks. It does not start paid generation.
 
@@ -222,7 +231,7 @@ The Stage 11 baseline includes a small UI polish pass:
 
 Safe UI polish check:
 
-    .venv/bin/python -u scripts/check_stage11_ui_polish.py
+    .venv\Scripts\python.exe -u scripts\check_stage11_ui_polish.py
 
 Stable backup after UI polish and Stage 9 smoke-tests:
 
@@ -256,9 +265,9 @@ Implemented and verified:
 
 Safe verification passed:
 
-    .venv/bin/python -m compileall app/main.py app/queue_worker.py
-    .venv/bin/python -u scripts/check_stage11_ui_polish.py
-    .venv/bin/python -u scripts/check_stage11_final_diagnostics.py
+    .venv\Scripts\python.exe -m compileall app\main.py app\queue_worker.py
+    .venv\Scripts\python.exe -u scripts\check_stage11_ui_polish.py
+    .venv\Scripts\python.exe -u scripts\check_stage11_final_diagnostics.py
 
 Safe route checks performed without paid/API calls:
 

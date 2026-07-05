@@ -5,13 +5,16 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
+PYTHON = Path(sys.executable)
+SAFE_OUTPUT_ROOT = PROJECT_ROOT / "tmp_test_output"
 
 
 def run_check(label: str, args: list[str]) -> bool:
     print(f"== {label} ==")
     env = os.environ.copy()
     env["PYTHON_DOTENV_DISABLED"] = "1"
+    env.setdefault("SEGMIND_API_KEY", "")
+    env.setdefault("OUTPUT_ROOT", str(SAFE_OUTPUT_ROOT))
     result = subprocess.run(
         args,
         cwd=PROJECT_ROOT,

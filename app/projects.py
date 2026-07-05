@@ -8,7 +8,7 @@ import re
 import unicodedata
 
 from app.db import DATA_DIR
-from app.settings import OUTPUT_DIR
+from app.settings import OUTPUT_DIR, normalize_runtime_path
 
 
 WINDOWS_FORBIDDEN_CHARS = '<>:"/\\|?*'
@@ -24,7 +24,7 @@ def get_output_root() -> Path:
     explicit_root = os.getenv("OUTPUT_ROOT", "").strip()
 
     if explicit_root:
-        return Path(explicit_root)
+        return normalize_runtime_path(explicit_root)
 
     return Path(OUTPUT_DIR).parent
 

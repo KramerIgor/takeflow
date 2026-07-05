@@ -890,7 +890,7 @@ def base_context(
     batch_import_report: dict | None = None,
     night_mode_report: dict | None = None,
 ):
-    if message is None:
+    if message is None and request is not None:
         message = request.query_params.get("message")
 
     queue_tasks, queue_batches, queue_overall_summary = queue_tasks_for_view()

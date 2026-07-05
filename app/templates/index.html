@@ -1058,6 +1058,11 @@
   {% if has_processing_single_generation or has_active_queue_work %}
     <script>
       setTimeout(function () {
+        const activeTab = localStorage.getItem("seedance_gui_active_tab_v1") || "project-settings";
+        const refreshTabs = new Set(["single-history", "queue-workflow"]);
+        if (!refreshTabs.has(activeTab)) {
+          return;
+        }
         if (window.location.pathname === "/") {
           window.location.reload();
         } else {

@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app.db import create_task, delete_task
+from app.db import create_task, delete_task, update_task_fields
 from app.projects import get_active_project_dir, get_active_project_name, get_output_root
 
 
@@ -63,6 +63,15 @@ def make_params(prompt: str, mode: str) -> dict:
     }
 
 
+def to_mnt_c_path(path: Path) -> str | None:
+    resolved = path.resolve()
+    drive = resolved.drive.rstrip(":").lower()
+    if drive != "c":
+        return None
+    rest = str(resolved)[3:].replace("\\", "/")
+    return f"/mnt/c/{rest}"
+
+
 def main_check() -> int:
     print("=== History edit refs check ===")
 
@@ -70,12 +79,21 @@ def main_check() -> int:
     prompt = f"HISTORY_EDIT_REFS_CHECK_{marker}"
     created_tasks = []
 
+    output_root = get_output_root().resolve()
+    output_test_dir = get_active_project_dir() / f"_history_edit_refs_check_{marker}"
+
     with TemporaryDirectory() as tmp:
         external_ref = Path(tmp) / f"external_ref_{marker}.png"
         external_ref.write_bytes(b"not-a-real-png-but-valid-reference-path")
 
-        output_root = get_output_root().resolve()
         ref_outside_output_root = not external_ref.resolve().is_relative_to(output_root)
+        output_test_dir.mkdir(parents=True, exist_ok=True)
+        wsl_ref = output_test_dir / f"wsl_ref_{marker}.png"
+        wsl_ref.write_bytes(b"fake-wsl-ref")
+        wsl_video = output_test_dir / f"wsl_video_{marker}.mp4"
+        wsl_video.write_bytes(b"fake-mp4")
+        wsl_ref_path = to_mnt_c_path(wsl_ref) or str(wsl_ref)
+        wsl_video_path = to_mnt_c_path(wsl_video) or str(wsl_video)
 
         refs = [
             {
@@ -102,11 +120,29 @@ def main_check() -> int:
             refs=refs,
             status="queued",
         )
-        created_tasks.extend([history_task_id, queue_task_id])
+        wsl_task_id = create_task(
+            model="seedance-2.0-fast",
+            prompt=f"{prompt}_WSL_PATHS",
+            params=make_params(f"{prompt}_WSL_PATHS", "single_generation_paid"),
+            refs=[
+                {
+                    "role": "image 1",
+                    "original_filename": wsl_ref.name,
+                    "local_path": wsl_ref_path,
+                    "source": "test_wsl_reference_path",
+                    "media_type": "image",
+                    "size_bytes": wsl_ref.stat().st_size,
+                }
+            ],
+            status="completed",
+        )
+        update_task_fields(wsl_task_id, output_path=wsl_video_path, run_dir=str(output_test_dir))
+        created_tasks.extend([history_task_id, queue_task_id, wsl_task_id])
 
         try:
             client = TestClient(main.app)
             html = client.get("/").text
+            view_items = main.single_generation_history_for_view(limit=80)
             json_items = history_json_items(html)
             matching_items = [
                 item for item in json_items if item.get("prompt") in {prompt, f"{prompt}_QUEUE"}
@@ -117,8 +153,21 @@ def main_check() -> int:
                 for ref in (item.get("refs") or [])
                 if ref.get("filename") == external_ref.name
             ]
+            wsl_items = [
+                item for item in json_items if item.get("prompt") == f"{prompt}_WSL_PATHS"
+            ]
+            wsl_view_items = [
+                item for item in view_items if item.get("prompt") == f"{prompt}_WSL_PATHS"
+            ]
+            wsl_refs = [
+                ref
+                for item in wsl_items
+                for ref in (item.get("refs") or [])
+                if ref.get("filename") == wsl_ref.name
+            ]
 
             backend_refs = main.safe_existing_reference_refs([str(external_ref)])
+            backend_wsl_refs = main.safe_existing_reference_refs([wsl_ref_path])
 
             checks = [
                 expect("external_ref_outside_output_root", ref_outside_output_root),
@@ -128,10 +177,19 @@ def main_check() -> int:
                 expect("refs_keep_local_path", all(ref.get("local_path") == str(external_ref.resolve()) for ref in matching_refs)),
                 expect("external_preview_not_exposed", all(not ref.get("preview_url") for ref in matching_refs)),
                 expect("backend_accepts_existing_external_ref", len(backend_refs) == 1 and backend_refs[0].get("local_path") == str(external_ref.resolve())),
+                expect("wsl_path_item_rendered", len(wsl_items) == 1),
+                expect("wsl_ref_marked_existing", len(wsl_refs) == 1 and wsl_refs[0].get("exists") is True),
+                expect("wsl_ref_normalized_to_windows_path", len(wsl_refs) == 1 and wsl_refs[0].get("local_path") == str(wsl_ref.resolve())),
+                expect("wsl_ref_preview_exposed_inside_output_root", len(wsl_refs) == 1 and bool(wsl_refs[0].get("preview_url"))),
+                expect("wsl_video_preview_url_present", bool(wsl_view_items[0].get("output_preview_url")) if wsl_view_items else False),
+                expect("backend_accepts_existing_wsl_ref", len(backend_wsl_refs) == 1 and backend_wsl_refs[0].get("local_path") == str(wsl_ref.resolve())),
             ]
         finally:
             for task_id in created_tasks:
                 delete_task(task_id)
+            import shutil
+
+            shutil.rmtree(output_test_dir, ignore_errors=True)
 
     print("test_tasks_deleted=True")
     print("new_paid_submit_started=False")

@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.db import create_task, delete_task, get_task, init_db, list_tasks, update_task_fields, update_task_payload
 from app.queue_worker import process_next_queued_task_real, process_queue_loop, process_queued_task_real_by_id, _save_api_last_frame_if_present
-from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL
+from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL, normalize_runtime_path
 from app.segmind_client import SegmindClient
 from app.costing import build_cost_info, cost_label, estimate_seedance_cost_info, extract_cost_info
 from app.storage import allocate_take_paths, sanitize_folder_part
@@ -233,7 +233,7 @@ def load_summary_for_run(run_dir: str | None) -> dict:
     if not run_dir:
         return {}
     try:
-        summary_path = Path(run_dir) / "summary.json"
+        summary_path = normalize_runtime_path(run_dir) / "summary.json"
         if summary_path.exists():
             data = json.loads(summary_path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
@@ -283,7 +283,7 @@ def ref_view_for_item(ref: dict) -> dict:
 
     if local_path:
         try:
-            path = Path(local_path).resolve()
+            path = normalize_runtime_path(local_path).resolve()
             output_root = projects_module.get_output_root().resolve()
             exists = path.exists() and path.is_file()
             if exists:
@@ -505,7 +505,7 @@ def output_preview_url_for_path(output_path: str | None) -> tuple[str | None, st
         return None, None
 
     try:
-        path = Path(output_path).resolve()
+        path = normalize_runtime_path(output_path).resolve()
         output_root = projects_module.get_output_root().resolve()
         if path.exists() and path.is_file() and path.is_relative_to(output_root):
             return str(path), "/safe-media-file?path=" + quote(str(path), safe="")
@@ -542,11 +542,11 @@ def last_frame_view_for_task(task: dict) -> dict:
 
     run_dir = task.get("run_dir")
     if run_dir:
-        candidates.append(Path(run_dir) / "last_frame.png")
+        candidates.append(normalize_runtime_path(run_dir) / "last_frame.png")
 
     output_path = task.get("output_path")
     if output_path:
-        output = Path(output_path)
+        output = normalize_runtime_path(output_path)
         if output.parent.name == "videos":
             candidates.append(output.parent.parent / "runs" / output.stem / "last_frame.png")
 
@@ -666,7 +666,7 @@ def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
             continue
 
         try:
-            resolved = Path(path_value).resolve()
+            resolved = normalize_runtime_path(path_value).resolve()
         except Exception:
             continue
 
@@ -706,7 +706,7 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
 
     if output_path:
         try:
-            path = Path(output_path).resolve()
+            path = normalize_runtime_path(output_path).resolve()
             output_root = projects_module.get_output_root().resolve()
             if path.exists() and path.is_file() and path.is_relative_to(output_root):
                 output_preview_url = "/safe-media-file?path=" + quote(str(path), safe="")
@@ -802,12 +802,14 @@ def single_generation_history_from_legacy_runs(seen_run_dirs: set[str], limit: i
             continue
 
         video_path = summary.get("video_path") or str(run_dir / "output.mp4")
-        if not Path(video_path).exists():
+        video_path_obj = normalize_runtime_path(video_path)
+        if not video_path_obj.exists():
             video_path = None
 
         output_preview_url = None
         if video_path:
-            output_preview_url = "/safe-media-file?path=" + quote(str(Path(video_path).resolve()), safe="")
+            video_path = str(video_path_obj.resolve())
+            output_preview_url = "/safe-media-file?path=" + quote(str(video_path_obj.resolve()), safe="")
 
         prompt = ""
         prompt_path = run_dir / "prompt.txt"
@@ -2614,7 +2616,7 @@ def start_queue_loop(
 @app.get("/open-path", response_class=HTMLResponse)
 def open_path(path: str):
     output_root = projects_module.get_output_root().resolve()
-    target = Path(path).resolve()
+    target = normalize_runtime_path(path).resolve()
 
     try:
         is_allowed = target == output_root or output_root in target.parents
@@ -2810,7 +2812,7 @@ def safe_media_file(path: str):
     output_root = projects_module.get_output_root().resolve()
 
     try:
-        requested = Path(path).resolve()
+        requested = normalize_runtime_path(path).resolve()
     except Exception:
         return HTMLResponse("Invalid file path.", status_code=400)
 

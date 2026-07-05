@@ -13,7 +13,7 @@ import uuid
 
 import httpx
 from fastapi import FastAPI, Request, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -84,6 +84,8 @@ _queue_loop_state: dict[str, object] = {
     "finished_at": None,
     "result": None,
     "error": None,
+    "stop_requested": False,
+    "paused_count": 0,
 }
 
 
@@ -386,6 +388,8 @@ def mark_queue_loop_started(*, project_name: str, project_dir: str, max_tasks: i
                 "finished_at": None,
                 "result": None,
                 "error": None,
+                "stop_requested": False,
+                "paused_count": 0,
             }
         )
 
@@ -400,6 +404,42 @@ def mark_queue_loop_finished(*, result: dict | None = None, error: str | None = 
                 "error": error,
             }
         )
+
+
+def mark_queue_loop_stop_requested(*, paused_count: int) -> None:
+    with _queue_loop_state_lock:
+        _queue_loop_state.update(
+            {
+                "stop_requested": True,
+                "paused_count": paused_count,
+            }
+        )
+
+
+def pause_active_project_queued_tasks() -> list[int]:
+    paused_task_ids: list[int] = []
+    for task in active_project_tasks(limit=1000):
+        if task.get("status") == "queued":
+            update_task_fields(
+                int(task["id"]),
+                status="paused",
+                error="Paused by user stop request before task started.",
+            )
+            paused_task_ids.append(int(task["id"]))
+    return paused_task_ids
+
+
+def resume_active_project_paused_tasks() -> list[int]:
+    resumed_task_ids: list[int] = []
+    for task in active_project_tasks(limit=1000):
+        if task.get("status") == "paused":
+            update_task_fields(
+                int(task["id"]),
+                status="queued",
+                error=None,
+            )
+            resumed_task_ids.append(int(task["id"]))
+    return resumed_task_ids
 
 
 def queue_batch_summary_for_tasks(tasks: list[dict]) -> dict:
@@ -422,6 +462,7 @@ def queue_batch_summary_for_tasks(tasks: list[dict]) -> dict:
     queued_count = status_counts.get("queued", 0)
     failed_count = status_counts.get("failed", 0) + status_counts.get("recoverable", 0)
     cancelled_count = status_counts.get("cancelled", 0)
+    paused_count = status_counts.get("paused", 0)
 
     processing_task = next((task for task in ordered if task.get("status") == "processing"), None)
     next_queued_task = next((task for task in ordered if task.get("status") == "queued"), None)
@@ -449,10 +490,12 @@ def queue_batch_summary_for_tasks(tasks: list[dict]) -> dict:
         "queued_count": queued_count,
         "failed_count": failed_count,
         "cancelled_count": cancelled_count,
+        "paused_count": paused_count,
         "current_position": current_position,
         "progress_label": progress_label,
         "total_cost_label": format_queue_cost_total(total_cost if has_cost else None),
         "has_active_work": processing_count > 0 or queued_count > 0,
+        "has_paused_work": paused_count > 0,
     }
 
 
@@ -830,6 +873,13 @@ def single_generation_history_for_view(limit: int = 40) -> list[dict]:
     return items[:limit]
 
 
+def redirect_home(message: str | None = None) -> RedirectResponse:
+    url = "/"
+    if message:
+        url = f"/?message={quote(message)}"
+    return RedirectResponse(url=url, status_code=303)
+
+
 def base_context(
     request: Request,
     message: str | None = None,
@@ -840,6 +890,9 @@ def base_context(
     batch_import_report: dict | None = None,
     night_mode_report: dict | None = None,
 ):
+    if message is None:
+        message = request.query_params.get("message")
+
     queue_tasks, queue_batches, queue_overall_summary = queue_tasks_for_view()
     single_history = single_generation_history_for_view()
     queue_loop_state = queue_loop_state_for_active_project()
@@ -2086,14 +2139,7 @@ def start_queue_once(request: Request):
     else:
         message = f"Queue task #{result.get('task_id')} failed. See run folder for details."
 
-    return templates.TemplateResponse(
-        "index.html",
-        base_context(
-            request,
-            message=message,
-            last_queue_run=result,
-        ),
-    )
+    return redirect_home(message)
 
 
 @app.post("/draft-task", response_class=HTMLResponse)
@@ -2402,14 +2448,7 @@ async def run_single_generation(
         "task_id": task_id,
     }
 
-    return templates.TemplateResponse(
-        "index.html",
-        base_context(
-            request,
-            message=f"Single generation #{task_id} started. It will appear in History while processing.",
-            last_run=last_run,
-        ),
-    )
+    return redirect_home(f"Single generation #{task_id} started. It will appear in History while processing.")
 
 
 @app.post("/retry-task/{task_id}", response_class=HTMLResponse)
@@ -2505,6 +2544,30 @@ def run_queue_loop_background(*, project_filter: dict, max_tasks: int, stale_cle
         mark_queue_loop_finished(error=str(exc))
 
 
+@app.post("/stop-queue-loop", response_class=HTMLResponse)
+def stop_queue_loop(request: Request):
+    paused_task_ids = pause_active_project_queued_tasks()
+    mark_queue_loop_stop_requested(paused_count=len(paused_task_ids))
+
+    processing_count = len([task for task in active_project_tasks(limit=1000) if task.get("status") == "processing"])
+    if processing_count:
+        message = (
+            f"Stop requested. Paused {len(paused_task_ids)} queued task(s). "
+            "The current processing task cannot be cancelled locally and will finish or fail before the loop stops."
+        )
+    else:
+        message = f"Stop requested. Paused {len(paused_task_ids)} queued task(s)."
+
+    return redirect_home(message)
+
+
+@app.post("/resume-paused-queue", response_class=HTMLResponse)
+def resume_paused_queue(request: Request):
+    resumed_task_ids = resume_active_project_paused_tasks()
+    message = f"Resumed {len(resumed_task_ids)} paused queue task(s)."
+    return redirect_home(message)
+
+
 @app.post("/start-queue-loop", response_class=HTMLResponse)
 def start_queue_loop(
     request: Request,
@@ -2521,10 +2584,7 @@ def start_queue_loop(
     if current_state.get("active"):
         active_project = current_state.get("project_name") or "another project"
         message = f"Queue loop is already running for {active_project}. Wait for it to finish before starting another paid run."
-        return templates.TemplateResponse(
-            "index.html",
-            base_context(request, message=message),
-        )
+        return redirect_home(message)
 
     stale_cleanup = cleanup_processing_without_request_id()
     auto_recovery = auto_recover_existing_requests()
@@ -2548,14 +2608,7 @@ def start_queue_loop(
 
     message = f"Queue loop started in background for up to {max_tasks} task(s). This page refreshes automatically."
 
-    return templates.TemplateResponse(
-        "index.html",
-        base_context(
-            request,
-            message=message,
-            last_queue_run={"status": "started", "max_tasks": max_tasks, "processed": True},
-        ),
-    )
+    return redirect_home(message)
 
 
 @app.get("/open-path", response_class=HTMLResponse)

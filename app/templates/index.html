@@ -785,13 +785,35 @@
       {% if queue_loop_state.show %}
         <div class="notice compact-notice">
           {% if queue_loop_state.active %}
-            Queue loop is running for {{ queue_loop_state.project_name }}. This page refreshes every {{ refresh_seconds }} seconds.
+            {% if queue_loop_state.stop_requested %}
+              Stop requested for {{ queue_loop_state.project_name }}. {{ queue_loop_state.paused_count }} queued task(s) paused. Current processing task may still finish.
+            {% else %}
+              Queue loop is running for {{ queue_loop_state.project_name }}. This page refreshes every {{ refresh_seconds }} seconds.
+            {% endif %}
           {% elif queue_loop_state.error %}
             Queue loop stopped with error: {{ queue_loop_state.error }}
           {% elif queue_loop_state.result %}
             Queue loop finished: processed {{ queue_loop_state.result.processed_count }}, completed {{ queue_loop_state.result.completed_count }}, failed {{ queue_loop_state.result.failed_count }}.
           {% endif %}
         </div>
+      {% endif %}
+
+      {% if queue_overall_summary.queued_count or queue_loop_state.active %}
+        <form method="post" action="/stop-queue-loop" class="queue-control-form stop-queue-form">
+          <div class="actions">
+            <button type="submit" class="danger-button" onclick="return confirm('Stop the queue after the current processing task? Not-started queued tasks will be paused.');">Stop queue</button>
+            <span class="hint">Pauses not-started queued tasks. The current processing Segmind request cannot be cancelled locally.</span>
+          </div>
+        </form>
+      {% endif %}
+
+      {% if queue_overall_summary.paused_count %}
+        <form method="post" action="/resume-paused-queue" class="queue-control-form resume-queue-form">
+          <div class="actions">
+            <button type="submit" class="safe-button">Resume paused queue</button>
+            <span class="hint">Moves paused tasks back to queued. It does not start paid generation by itself.</span>
+          </div>
+        </form>
       {% endif %}
 
       <form method="post" action="/start-queue-loop" class="queue-loop-form paid-action-block">
@@ -1036,7 +1058,11 @@
   {% if has_processing_single_generation or has_active_queue_work %}
     <script>
       setTimeout(function () {
-        window.location.reload();
+        if (window.location.pathname === "/") {
+          window.location.reload();
+        } else {
+          window.location.replace("/");
+        }
       }, {{ refresh_seconds * 1000 }});
     </script>
   {% endif %}

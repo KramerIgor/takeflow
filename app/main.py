@@ -285,10 +285,11 @@ def ref_view_for_item(ref: dict) -> dict:
         try:
             path = Path(local_path).resolve()
             output_root = projects_module.get_output_root().resolve()
-            exists = path.exists() and path.is_file() and path.is_relative_to(output_root)
-            if exists and media_type in {"image", "video", "audio"}:
-                preview_url = "/safe-media-file?path=" + quote(str(path), safe="")
+            exists = path.exists() and path.is_file()
+            if exists:
                 local_path = str(path)
+            if exists and media_type in {"image", "video", "audio"} and path.is_relative_to(output_root):
+                preview_url = "/safe-media-file?path=" + quote(str(path), safe="")
         except Exception:
             exists = False
 
@@ -659,7 +660,6 @@ def queue_tasks_for_view():
 
 def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
     refs = []
-    output_root = projects_module.get_output_root().resolve()
 
     for index, path_value in enumerate(reference_paths or [], start=1):
         if not path_value:
@@ -675,7 +675,7 @@ def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
             continue
 
         try:
-            if not resolved.exists() or not resolved.is_file() or not resolved.is_relative_to(output_root):
+            if not resolved.exists() or not resolved.is_file():
                 continue
         except Exception:
             continue

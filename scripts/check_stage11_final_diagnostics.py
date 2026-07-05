@@ -67,6 +67,7 @@ def main() -> int:
                 "scripts/check_dragdrop_js_regression.py",
                 "scripts/check_project_scoped_history_queue.py",
                 "scripts/check_shared_last_frame_copy.py",
+                "scripts/check_history_edit_refs.py",
             ],
         ),
         run_check("stage10_night_mode", [str(PYTHON), "-u", "scripts/check_stage10_night_mode_dry_run.py"]),
@@ -78,6 +79,7 @@ def main() -> int:
         run_check("dragdrop_js_regression", [str(PYTHON), "-u", "scripts/check_dragdrop_js_regression.py"]),
         run_check("project_scoped_history_queue", [str(PYTHON), "-u", "scripts/check_project_scoped_history_queue.py"]),
         run_check("shared_last_frame_copy", [str(PYTHON), "-u", "scripts/check_shared_last_frame_copy.py"]),
+        run_check("history_edit_refs", [str(PYTHON), "-u", "scripts/check_history_edit_refs.py"]),
     ]
 
     if all(checks):

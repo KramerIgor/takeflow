@@ -153,7 +153,18 @@ def _append_parent_last_frame_ref(refs: list[dict], parent_last_frame_path: Path
     prepared_refs = [dict(item) for item in refs]
 
     for item in prepared_refs:
-        if item.get("local_path") == resolved_path:
+        local_path = item.get("local_path")
+        same_file = False
+        if local_path:
+            try:
+                same_file = Path(local_path).samefile(parent_last_frame_path)
+            except (OSError, ValueError):
+                try:
+                    same_file = os.path.normcase(str(Path(local_path).resolve())) == os.path.normcase(resolved_path)
+                except (OSError, ValueError):
+                    same_file = False
+
+        if same_file:
             item.setdefault("role", "parent_last_frame_reference")
             item.setdefault("source", "queue_chain")
             item.setdefault("parent_task_id", parent_task_id)

@@ -5,6 +5,7 @@ import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TEMPLATE_TEXT = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
 sys.path.insert(0, str(PROJECT_ROOT))
 
 os.environ["PYTHON_DOTENV_DISABLED"] = "1"
@@ -50,7 +51,7 @@ def main_run() -> int:
         assert_ok("paid_buttons_labeled_paid", "Run Single Generation (paid)" in text and "Start Full Queue (paid)" in text and "Start Next Item (paid)" in text),
         assert_ok("csv_preview_button_present", "Preview CSV Import (no tasks)" in text),
         assert_ok("csv_confirm_no_paid_generation_label", "Create Queued Tasks Only (no paid generation)" in text),
-        assert_ok("history_tasks_collapsed", 'class="history-details"' in text and "compact-history-card" in text and 'data-i18n="show_details"' in text),
+        assert_ok("history_tasks_collapsed", 'class="history-details"' in TEMPLATE_TEXT and "compact-history-card" in TEMPLATE_TEXT and 'data-i18n="show_details"' in TEMPLATE_TEXT),
         assert_ok("cancelled_tasks_not_deleted", cancelled_before == cancelled_after),
     ]
 

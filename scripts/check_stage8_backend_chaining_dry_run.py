@@ -101,6 +101,17 @@ def restore_worker(originals):
         setattr(worker, name, value)
 
 
+def same_file(path_a, path_b):
+    try:
+        return Path(path_a).samefile(path_b)
+    except (OSError, ValueError):
+        return os.path.normcase(str(Path(path_a).resolve())) == os.path.normcase(str(Path(path_b).resolve()))
+
+
+def contains_file(paths, expected):
+    return any(same_file(path, expected) for path in paths)
+
+
 def run_waiting_parent_case():
     updates = []
     child = base_child_task(parent_task_id=100)
@@ -262,8 +273,8 @@ def main_run():
     payload = completed["record"]["payload"] or {}
     completed_ok = (
         completed["result"].get("status") == "completed"
-        and completed["parent_last_frame"] in completed["record"]["uploaded_paths"]
-        and completed["grandparent_last_frame"] not in completed["record"]["uploaded_paths"]
+        and contains_file(completed["record"]["uploaded_paths"], completed["parent_last_frame"])
+        and not contains_file(completed["record"]["uploaded_paths"], completed["grandparent_last_frame"])
         and "https://uploaded.example/last_frame.png" in payload.get("reference_images", [])
         and "first_frame_url" not in payload
     )
@@ -273,8 +284,8 @@ def main_run():
     manual_payload = manual["record"]["payload"] or {}
     manual_ok = (
         manual["result"].get("status") == "completed"
-        and manual["record"]["uploaded_paths"].count(manual["parent_last_frame"]) == 1
-        and manual["grandparent_last_frame"] not in manual["record"]["uploaded_paths"]
+        and sum(same_file(path, manual["parent_last_frame"]) for path in manual["record"]["uploaded_paths"]) == 1
+        and not contains_file(manual["record"]["uploaded_paths"], manual["grandparent_last_frame"])
         and "https://uploaded.example/last_frame.png" in manual_payload.get("reference_images", [])
         and "first_frame_url" not in manual_payload
     )

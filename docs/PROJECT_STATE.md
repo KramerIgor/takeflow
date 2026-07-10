@@ -1,4 +1,20 @@
-# PROJECT_STATE.md — Seedance current state
+# PROJECT_STATE.md — Takeflow current state
+
+Takeflow — локальная AI-video студия для сцен, дублей и очередей, созданная Игорем Олеговичем Крамером / IOKRAMER.
+
+Created by Игорь Олегович Крамер / IOKRAMER.
+
+Release target:
+
+    Version: 0.1.0beta
+    Tag: v0.1.0-beta
+
+Release architecture:
+
+- Packaged Windows builds use PyInstaller onedir plus an Inno Setup per-user installer.
+- The installed app starts `Takeflow.exe`, which launches the local Uvicorn server and opens `http://127.0.0.1:7860`.
+- Runtime updates are checked through `update.json` and downloaded with visible progress. The app does not use `git pull` for end-user updates.
+- `.env`, local databases, logs and generated media are excluded from release artifacts.
 
 Updated after moving the active workspace to Windows.
 
@@ -16,6 +32,8 @@ Output root:
 
     C:\AI_OUTPUT
 
+The Projects screen now exposes an editable output root. Saving a new root creates that folder if needed and recreates the current active project folder under it. Existing project folders are not moved automatically.
+
 The old WSL copy `/home/iokramer/seedance_gui` is historical only. Do not edit or launch it unless the user explicitly asks for WSL migration or comparison.
 
 ## Completed
@@ -27,6 +45,8 @@ Stage 7 result structure is fixed:
     Project/videos/
     Project/last_frames/
     Project/runs/
+
+Current storage rule: new runs do not duplicate media in the run archive. Generated MP4 files are saved directly in `Project/videos/`; returned final-frame PNG files are saved directly in `Project/last_frames/`. Legacy `runs/<take>/output.mp4` and `runs/<take>/last_frame.png` are still readable.
 
 The active project is stored in:
 
@@ -151,42 +171,6 @@ Stable Stage 9 complete backup:
 
     /home/iokramer/seedance_gui_backups/stable_stage9_complete_20260621_001912
 
-## Stage 10 current state
-
-Stage 10 is complete as a working baseline.
-
-Done:
-
-- Night Mode Safety Preview section is implemented in the Queue tab.
-- Night mode preview route:
-  POST /night-mode-preview
-- Preview mode builds a queue run plan only.
-- Preview mode does not start the queue.
-- Preview mode does not call Segmind.
-- Preview mode does not create, update or delete queued tasks.
-- Controls include max_tasks and stop_on_consecutive_errors.
-- Preview report shows queued count, selected count, dependent continuation task count and parent-blocked count.
-- Dependent continuation chains are kept sequential; no parallel dependent continuation chains are planned.
-- Existing paid queue buttons still require explicit user confirmation.
-
-Stage 10 dry-run passed:
-
-    RESULT=STAGE10_NIGHT_MODE_DRY_RUN_OK
-
-Regression checks still pass:
-
-    RESULT=STAGE9_BATCH_IMPORT_DRY_RUN_OK
-    RESULT=STAGE8_BACKEND_CHAINING_DRY_RUN_OK
-    RESULT=STAGE8_TABBED_UI_OK
-
-Stage 10 pre-edit backup:
-
-    /home/iokramer/seedance_gui_backups/pre_stage10_night_mode_controls_20260621_002107
-
-Stable Stage 10 complete backup:
-
-    /home/iokramer/seedance_gui_backups/stable_stage10_complete_20260621_003156
-
 ## Stage 11 current state
 
 Stage 11 is superseded by the product UI cleanup baseline.
@@ -201,7 +185,7 @@ Done:
 - Desktop launcher does not start queue processing by itself.
 - Final safe diagnostics script:
   scripts/check_stage11_final_diagnostics.py
-- Final diagnostics run compile checks plus Stage 10, Stage 9 and Stage 8 dry-run checks.
+- Final diagnostics run compile checks, frontend module/static checks, Stage 10, Stage 9 and Stage 8 dry-run checks.
 - Final diagnostics do not start paid generation.
 - README includes startup, diagnostics and backup exclusion instructions.
 
@@ -226,12 +210,11 @@ Morning UI polish after Stage 11 keeps generation logic unchanged.
 Done:
 
 - Header status now presents the current baseline as:
-  Seedance
-- Queue tab is simplified for normal use; CSV import and Night Mode Safety Preview are advanced sections.
+  Takeflow
+- Queue tab is simplified for normal use; CSV import is an advanced section.
 - Paid queue buttons are visually separated and labeled with paid.
-- CSV and Night Mode preview actions are styled as safe preview actions.
+- CSV preview actions are styled as safe preview actions.
 - Batch CSV Import includes the required columns, optional continuation_group/continuation_index columns, and semicolon-separated reference_paths hint.
-- Night Mode Safety Preview explicitly says it is preview only and does not run the queue.
 - Queue / History shows active and recent tasks for the active project only, with completed/cancelled history collapsed.
 - Queue controls show active-project progress and estimated total cost; full queue runs start in the background and rely on auto-refresh for live status.
 - No tasks are deleted and no task statuses are changed by this UI grouping.
@@ -251,17 +234,25 @@ This is the current state to use at the next session start.
 
 Done today:
 
-- Main UI is product-facing: Projects, Single Generation, History, Queue.
+- Main UI is product-facing with a left sidebar: Projects, Single Generation, Queue.
+- Repository hygiene is updated: `.gitignore` excludes local secrets, virtualenvs, sqlite DB files/sidecars, logs, `tmp_test_output/`, generated result/media folders and `node_modules/`; `.env.example` is a secret-free generic template.
+- Single Generation and one-off History now share one workspace: the form is central, and History is a compact right rail with local refresh and its own scroll.
+- Queue now uses the same workspace shape: controls/forms are central, and Queue / History is a compact right rail with local refresh and its own scroll.
+- History cards are collapsed by default and show preview, title, status and primary actions. Prompt, references, settings, cost and debug/files are inside Details.
+- Single and Queue history rails have separate client-side pagination.
+- There is no separate primary History tab.
 - Stage/version label is removed from the header.
 - API settings can be edited from Projects without showing the current `.env` secret value.
 - Inactive projects can be deleted from the UI after confirmation.
-- Single Generation starts in the background and appears in History while processing.
+- Single Generation starts in the background and appears in the right History rail while processing.
 - Single Generation now uses the same queue worker path as Queue, targeted by concrete `task_id`.
 - Queue accepts image, video and audio references through `reference_files`.
-- Queue and Single Generation both support drag/drop reference files and reference chips/cards.
+- Queue and Single Generation both support drag/drop reference files and prompt-local reference chips/cards.
+- Attached references now live inside the prompt editor with media thumbnails/badges, a compact Add tile, a `N/9` reference counter, hover/focus remove controls, a prompt-local `@` dropdown, and inline visual chips for saved `<@filename>` tokens.
 - Queue rows show attached references after task creation.
 - Prompt tokens are stored as `<@filename>`; backend normalizes bare `@filename` when it matches an attached reference.
 - EN/RU switch exists for main UI labels.
+- Core Single/Queue form labels, compact history actions, pagination and modal controls are covered by the RU/EN switch.
 - Git is initialized and AGENTS.md allows commits for completed checkpoints after `git status` and secret/runtime-output review.
 
 Verification passed:
@@ -282,14 +273,27 @@ Current cost and balance behavior:
 - Reference image upload timeout/retry was increased after real Single Generation failures timed out before Segmind submit.
 - Drag/drop regression check is included in Stage 11 final diagnostics.
 - Existing saved result/status payloads did not include cost, so the app falls back to official Seedance pricing estimates by model/resolution/aspect/duration.
+- Single Generation and Queue forms show a local pre-submit cost estimate from the same pricing tables before any paid action is confirmed.
 - User dashboard example `seedance-2.0-fast`, 4s, 480p showed about `$0.2273`; official pricing estimate is `~$0.2248`.
 - Account balance is available through the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`; dashboard billing endpoints still require JWT cookies and are not used.
 - Do not use private dashboard endpoints for balance without explicit user approval.
 - Top bar shows balance state under the EN/RU language switch; current value is `Unavailable` because no official balance endpoint is known.
 - Queue history cards are implemented and mirror Single Generation history cards.
 - Queue item `Edit prompt` fills Single Generation with that one item's prompt/settings/refs.
-- Queue item `Regenerate` confirms the paid action and submits only that one item through Single Generation; it does not rerun the whole queue or batch.
+- Queue item `Regenerate` confirms the paid action and submits only that one item through Single Generation; it does not rerun the whole queue or batch. Queued-like queue cards label that action as `Run as Single (paid)` to avoid implying that the whole queue will run.
 - Queue display numbering is derived without schema migration: groups use `queue_group_id`, `batch_import_id`, `continuation_chain_id`, or legacy task fallback. UI labels are `Queue #N` and `N-M`.
+- Frontend JS is split out of `app/templates/index.html`; the template should stay focused on Jinja-rendered structure, macros and `window.seedanceConfig`.
+- `app/static/app.js` is now a small ES module entrypoint. Focused modules live in `app/static/js/`: auto-refresh, i18n, navigation, history pagination, history rail refresh/path opening, model constraints and live cost estimates, shared prompt reference UI helpers, Single Generation references/edit/regenerate/paid confirmation, Queue references/editing and form preference preservation.
+- `scripts/check_frontend_modules.py` verifies the module graph and public frontend hooks. `scripts/check_prompt_reference_cost_ui.py` verifies the prompt-local reference and pre-submit cost UI contract. `scripts/check_frontend_browser_cdp.py` is a repeatable safe browser regression for desktop/mobile, RU/EN, refresh guard, drag/drop, prompt references, model-aware reference limits, live cost estimates, history details/pagination and paid modal warning; it stops before paid confirmation.
+
+Current Segmind model support:
+
+- `seedance-2.0`: `480p`, `720p`, `1080p`, `4k`; duration 4-15 seconds.
+- `seedance-2.0-mini`: `480p`, `720p`; duration 4, 5, 6, 8, 10, 12, 15 seconds.
+- `seedance-2.0-fast`: legacy GUI option, kept to `480p` and `720p`.
+- UI selects and CSV validation are model-aware. `4k` is only valid for `seedance-2.0`.
+- Reference limits are model-aware. Current Seedance 2.0 Base, Mini and Fast options allow 9 references; future models can set another `reference_file_limit`. The limit is enforced in the prompt UI, normal form posts and CSV validation.
+- Cost estimates include official public pricing for current Seedance 2.0 Base, Mini and Fast options; unknown combinations intentionally do not show an estimate.
 
 
 ## Next step

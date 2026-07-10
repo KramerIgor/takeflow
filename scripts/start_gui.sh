@@ -13,7 +13,7 @@ if [ ! -x ".venv/bin/python" ]; then
   exit 1
 fi
 
-printf 'Starting Seedance GUI at http://%s:%s\n' "$HOST" "$PORT"
+printf 'Starting Takeflow at http://%s:%s\n' "$HOST" "$PORT"
 printf 'Press Ctrl+C to stop.\n'
 
 exec .venv/bin/python -m uvicorn app.main:app --host "$HOST" --port "$PORT"

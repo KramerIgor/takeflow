@@ -10,6 +10,9 @@ from fastapi.testclient import TestClient
 from app.db import create_task, delete_task
 from app.main import app, queue_tasks_for_view
 from app.projects import get_active_project_dir, get_active_project_name
+from scripts.frontend_static_utils import read_static_js
+
+APP_JS = read_static_js(PROJECT_ROOT)
 
 
 def expect(name, condition):
@@ -64,9 +67,12 @@ def main():
             expect("queue_history_json_present", html.count("history-item-data") >= 1),
             expect("balance_in_topbar", "top-balance" in html and "Balance" in html),
             expect("technical_id_debug_only", "Technical task ID" in html),
+            expect("technical_id_not_in_collapsed_subtitle", "technical id #" not in html),
+            expect("status_display_layer_present", 'data-status-value="queued"' in html),
+            expect("queued_item_paid_action_explicit", "Run as Single (paid)" in html),
             expect("queue_edit_button", "queue-edit-button" in html),
             expect("remove_queue_route", "/remove-queued-task/" in html),
-            expect("update_queue_route_js", "/update-queued-task/" in html),
+            expect("update_queue_route_js", "/update-queued-task/" in APP_JS),
             expect("temporary_prompt_visible", prompt in html),
         ]
     finally:

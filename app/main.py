@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import threading
@@ -13,7 +14,7 @@ import uuid
 
 import httpx
 from fastapi import FastAPI, Request, Form, File, UploadFile
-from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -21,9 +22,18 @@ from app.db import create_task, delete_task, get_task, init_db, list_tasks, upda
 from app.queue_worker import process_next_queued_task_real, process_queue_loop, process_queued_task_real_by_id, _save_api_last_frame_if_present
 from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL, normalize_runtime_path
 from app.segmind_client import SegmindClient
-from app.costing import build_cost_info, cost_label, estimate_seedance_cost_info, extract_cost_info
+from app.costing import (
+    TEXT_IMAGE_RATES_USD_PER_SECOND,
+    VIDEO_TYPICAL_RATES_USD_PER_SECOND,
+    build_cost_info,
+    cost_label,
+    estimate_seedance_cost_info,
+    extract_cost_info,
+)
 from app.storage import allocate_take_paths, sanitize_folder_part
 from app.task_recovery import recover_task_by_existing_request
+from app.updater import UpdateManager
+from app.version import APP_RELEASE_TAG, APP_VERSION, APP_VERSION_DISPLAY
 from app import projects as projects_module
 
 
@@ -31,7 +41,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATES_DIR = PROJECT_ROOT / "app" / "templates"
 STATIC_DIR = PROJECT_ROOT / "app" / "static"
 
-app = FastAPI(title="Seedance GUI", version="0.1.0")
+app = FastAPI(title="Takeflow", version=APP_VERSION)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -39,14 +49,44 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 init_db()
 
 
+STANDARD_DURATIONS = list(range(4, 16))
+MINI_DURATIONS = [4, 5, 6, 8, 10, 12, 15]
+ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"]
+DEFAULT_REFERENCE_FILE_LIMIT = 9
+
 MODEL_CHOICES = [
-    {"id": "seedance-2.0", "label": "Seedance 2.0", "note": "Base model"},
-    {"id": "seedance-2.0-fast", "label": "Seedance 2.0 Fast", "note": "Faster / cheaper variant"},
+    {
+        "id": "seedance-2.0",
+        "label": "Seedance 2.0",
+        "note": "Base model / 4K",
+        "durations": STANDARD_DURATIONS,
+        "resolutions": ["480p", "720p", "1080p", "4k"],
+        "aspect_ratios": ASPECT_RATIOS,
+        "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
+    },
+    {
+        "id": "seedance-2.0-mini",
+        "label": "Seedance 2.0 Mini",
+        "note": "Draft tier / 480p-720p",
+        "durations": MINI_DURATIONS,
+        "resolutions": ["480p", "720p"],
+        "aspect_ratios": ASPECT_RATIOS,
+        "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
+    },
+    {
+        "id": "seedance-2.0-fast",
+        "label": "Seedance 2.0 Fast",
+        "note": "Legacy faster / cheaper variant",
+        "durations": STANDARD_DURATIONS,
+        "resolutions": ["480p", "720p"],
+        "aspect_ratios": ASPECT_RATIOS,
+        "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
+    },
 ]
 
-DURATIONS = list(range(4, 16))
-RESOLUTIONS = ["480p", "720p", "1080p"]
-ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "adaptive"]
+MODEL_CONFIGS = {item["id"]: item for item in MODEL_CHOICES}
+DURATIONS = STANDARD_DURATIONS
+RESOLUTIONS = ["480p", "720p", "1080p", "4k"]
 
 BATCH_IMPORT_REQUIRED_COLUMNS = [
     "episode_name",
@@ -69,8 +109,12 @@ SINGLE_GENERATION_MODES = {"single_generation_paid", "single_generation_regenera
 
 
 
-APP_TITLE = "Seedance"
-APP_SUBTITLE = "Local video generation workspace"
+APP_TITLE = "Takeflow"
+APP_SUBTITLE = "Local AI-video studio for scenes, takes, and queues"
+APP_CREATOR = "Игорь Олегович Крамер / IOKRAMER"
+STATIC_ASSET_VERSION = "20260709-video-only"
+SHUTDOWN_TOKEN = secrets.token_urlsafe(32)
+UPDATE_MANAGER = UpdateManager(PROJECT_ROOT / "data" / "updates")
 BALANCE_CACHE_SECONDS = 60
 _segmind_balance_cache: dict[str, object] = {"expires_at": 0.0, "context": None}
 QUEUE_LOOP_REFRESH_SECONDS = 15
@@ -120,6 +164,60 @@ def update_env_values(values: dict[str, str]) -> None:
         output_lines.append(f"{key}={value}")
 
     ENV_PATH.write_text("\n".join(output_lines).rstrip() + "\n", encoding="utf-8")
+
+
+def normalize_output_root_input(path_value: str) -> Path:
+    raw_value = (path_value or "").strip().strip('"')
+    if not raw_value:
+        raise ValueError("Output root path is required.")
+
+    root = normalize_runtime_path(raw_value).expanduser()
+    if not root.is_absolute():
+        raise ValueError("Output root must be an absolute path.")
+
+    if root.exists() and not root.is_dir():
+        raise ValueError("Output root points to a file, not a folder.")
+
+    return root
+
+
+def request_is_local(request: Request) -> bool:
+    host = (request.client.host if request.client else "") or ""
+    return host in {"127.0.0.1", "::1", "localhost"}
+
+
+def validate_local_token(request: Request, token: str) -> None:
+    if not request_is_local(request):
+        raise PermissionError("This action is only available from the local machine.")
+    if not secrets.compare_digest(token or "", SHUTDOWN_TOKEN):
+        raise PermissionError("Invalid local action token.")
+
+
+def choose_output_root_dialog() -> str:
+    import tkinter as tk
+    from tkinter import filedialog
+
+    current_root = projects_module.get_output_root()
+    initial_dir = str(current_root if current_root.exists() else Path.home())
+
+    dialog_root = tk.Tk()
+    dialog_root.withdraw()
+    dialog_root.attributes("-topmost", True)
+    try:
+        selected = filedialog.askdirectory(
+            parent=dialog_root,
+            title="Choose Takeflow output root",
+            initialdir=initial_dir,
+            mustexist=False,
+        )
+        return str(selected or "")
+    finally:
+        dialog_root.destroy()
+
+
+@app.on_event("startup")
+def check_updates_on_startup() -> None:
+    UPDATE_MANAGER.check_for_updates_background()
 
 
 
@@ -542,6 +640,14 @@ def last_frame_view_for_task(task: dict) -> dict:
 
     run_dir = task.get("run_dir")
     if run_dir:
+        try:
+            summary = load_summary_for_run(run_dir)
+            for key in ("last_frame_shared_path", "last_frame_path"):
+                value = summary.get(key)
+                if value:
+                    candidates.append(normalize_runtime_path(value))
+        except Exception:
+            pass
         candidates.append(normalize_runtime_path(run_dir) / "last_frame.png")
 
     output_path = task.get("output_path")
@@ -658,8 +764,29 @@ def queue_tasks_for_view():
 
 
 
-def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
+def safe_existing_reference_refs(reference_paths: list[str], reference_metadata: list[str] | None = None) -> list[dict]:
     refs = []
+    metadata_by_path = {}
+
+    for raw_item in reference_metadata or []:
+        try:
+            item = json.loads(raw_item)
+        except Exception:
+            continue
+
+        if not isinstance(item, dict):
+            continue
+
+        path_text = item.get("local_path")
+        if not path_text:
+            continue
+
+        try:
+            key = str(normalize_runtime_path(path_text).resolve())
+        except Exception:
+            key = str(path_text)
+
+        metadata_by_path[key] = item
 
     for index, path_value in enumerate(reference_paths or [], start=1):
         if not path_value:
@@ -680,10 +807,14 @@ def safe_existing_reference_refs(reference_paths: list[str]) -> list[dict]:
         except Exception:
             continue
 
+        metadata = metadata_by_path.get(str(resolved)) or {}
+        original_filename = metadata.get("original_filename") or metadata.get("filename") or resolved.name
+        media_type = metadata.get("media_type") or media_type
+
         refs.append(
             {
                 "role": f"{media_type} {index}",
-                "original_filename": resolved.name,
+                "original_filename": Path(str(original_filename)).name,
                 "local_path": str(resolved),
                 "source": "history_edit",
                 "media_type": media_type,
@@ -890,7 +1021,7 @@ def base_context(
     last_queue_add: dict | None = None,
     last_queue_run: dict | None = None,
     batch_import_report: dict | None = None,
-    night_mode_report: dict | None = None,
+    active_tab: str | None = None,
 ):
     if message is None and request is not None:
         message = request.query_params.get("message")
@@ -905,14 +1036,35 @@ def base_context(
 
     context = {
         "request": request,
-        "app_version": "0.1.0",
+        "app_version": APP_VERSION,
+        "app_version_display": APP_VERSION_DISPLAY,
+        "app_release_tag": APP_RELEASE_TAG,
+        "static_asset_version": STATIC_ASSET_VERSION,
         "app_title": APP_TITLE,
         "app_subtitle": APP_SUBTITLE,
+        "app_creator": APP_CREATOR,
+        "shutdown_token": SHUTDOWN_TOKEN,
+        "update_state": UPDATE_MANAGER.get_update_state(),
+        "update_download_state": UPDATE_MANAGER.get_download_state(),
         "api_key_set": env_key_is_set(),
         "api_base": SEGMIND_API_BASE,
         **segmind_balance_context(),
         "default_model": SEGMIND_MODEL,
         "model_choices": MODEL_CHOICES,
+        "model_capabilities": {
+            item["id"]: {
+                "durations": item["durations"],
+                "resolutions": item["resolutions"],
+                "aspect_ratios": item["aspect_ratios"],
+                "default_duration": item["durations"][0],
+                "default_resolution": item["resolutions"][0],
+                "default_aspect_ratio": item["aspect_ratios"][0],
+                "reference_file_limit": item.get("reference_file_limit", DEFAULT_REFERENCE_FILE_LIMIT),
+                "text_image_rates": TEXT_IMAGE_RATES_USD_PER_SECOND.get(item["id"], {}),
+                "video_rates": VIDEO_TYPICAL_RATES_USD_PER_SECOND.get(item["id"], {}),
+            }
+            for item in MODEL_CHOICES
+        },
         "output_dir": str(projects_module.get_active_project_dir()),
         "durations": DURATIONS,
         "resolutions": RESOLUTIONS,
@@ -923,7 +1075,7 @@ def base_context(
         "last_queue_add": last_queue_add,
         "last_queue_run": last_queue_run,
         "batch_import_report": batch_import_report,
-        "night_mode_report": night_mode_report,
+        "active_tab": active_tab,
         "queue_tasks": queue_tasks,
         "queue_batches": queue_batches,
         "queue_overall_summary": queue_overall_summary,
@@ -1010,8 +1162,73 @@ def normalize_prompt_reference_tokens(prompt: str, refs: list[dict]) -> str:
 
 
 def normalize_model(model: str) -> str:
-    allowed_models = {item["id"] for item in MODEL_CHOICES}
-    return model if model in allowed_models else "seedance-2.0"
+    return model if model in MODEL_CONFIGS else "seedance-2.0"
+
+
+def model_config_for_id(model: str | None) -> dict:
+    return MODEL_CONFIGS.get(normalize_model(str(model or "")), MODEL_CONFIGS["seedance-2.0"])
+
+
+def allowed_durations_for_model(model: str | None) -> list[int]:
+    return list(model_config_for_id(model).get("durations") or STANDARD_DURATIONS)
+
+
+def allowed_resolutions_for_model(model: str | None) -> list[str]:
+    return list(model_config_for_id(model).get("resolutions") or ["480p"])
+
+
+def allowed_aspect_ratios_for_model(model: str | None) -> list[str]:
+    return list(model_config_for_id(model).get("aspect_ratios") or ASPECT_RATIOS)
+
+
+def reference_file_limit_for_model(model: str | None) -> int:
+    try:
+        limit = int(model_config_for_id(model).get("reference_file_limit", DEFAULT_REFERENCE_FILE_LIMIT))
+    except (TypeError, ValueError):
+        return DEFAULT_REFERENCE_FILE_LIMIT
+
+    return limit if limit > 0 else DEFAULT_REFERENCE_FILE_LIMIT
+
+
+def upload_reference_file_count(reference_files: list[UploadFile] | None) -> int:
+    count = 0
+    for uploaded in reference_files or []:
+        filename = getattr(uploaded, "filename", "")
+        if filename and reference_media_type_for_path(filename) != "unsupported":
+            count += 1
+    return count
+
+
+def reference_limit_message(*, model: str, count: int, limit: int) -> str:
+    label = model_config_for_id(model).get("label") or model
+    return f"{label} supports up to {limit} reference file(s). Current selection has {count}."
+
+
+def reference_count_exceeds_model_limit(
+    *,
+    model: str,
+    existing_refs: list[dict] | None = None,
+    reference_files: list[UploadFile] | None = None,
+    extra_count: int = 0,
+) -> tuple[bool, int, int]:
+    limit = reference_file_limit_for_model(model)
+    count = len(existing_refs or []) + upload_reference_file_count(reference_files) + extra_count
+    return count > limit, count, limit
+
+
+def coerce_duration_for_model(model: str | None, duration: int) -> int:
+    allowed = allowed_durations_for_model(model)
+    return duration if duration in allowed else allowed[0]
+
+
+def coerce_resolution_for_model(model: str | None, resolution: str) -> str:
+    allowed = allowed_resolutions_for_model(model)
+    return resolution if resolution in allowed else allowed[0]
+
+
+def coerce_aspect_ratio_for_model(model: str | None, aspect_ratio: str) -> str:
+    allowed = allowed_aspect_ratios_for_model(model)
+    return aspect_ratio if aspect_ratio in allowed else allowed[0]
 
 
 def build_params(
@@ -1216,9 +1433,9 @@ def validate_batch_import_row(row: dict) -> tuple[dict | None, list[dict]]:
     scene_name = (raw.get("scene_name") or "").strip() or "Scene_001"
 
     model = (raw.get("model") or "").strip() or "seedance-2.0-fast"
-    allowed_models = {item["id"] for item in MODEL_CHOICES}
-    if model not in allowed_models:
+    if model not in MODEL_CONFIGS:
         add_error("model", f"Invalid model: {model}")
+    model_for_validation = model if model in MODEL_CONFIGS else "seedance-2.0"
 
     duration_text = (raw.get("duration") or "").strip()
     duration = 4
@@ -1227,16 +1444,25 @@ def validate_batch_import_row(row: dict) -> tuple[dict | None, list[dict]]:
             duration = int(duration_text)
         except ValueError:
             add_error("duration", "Duration must be an integer.")
-    if duration not in DURATIONS:
-        add_error("duration", f"Duration must be one of: {', '.join(str(item) for item in DURATIONS)}")
+    allowed_durations = allowed_durations_for_model(model_for_validation)
+    if duration not in allowed_durations:
+        add_error(
+            "duration",
+            f"Duration for {model_for_validation} must be one of: {', '.join(str(item) for item in allowed_durations)}",
+        )
 
     resolution = (raw.get("resolution") or "").strip() or "480p"
-    if resolution not in RESOLUTIONS:
-        add_error("resolution", f"Resolution must be one of: {', '.join(RESOLUTIONS)}")
+    allowed_resolutions = allowed_resolutions_for_model(model_for_validation)
+    if resolution not in allowed_resolutions:
+        add_error(
+            "resolution",
+            f"Resolution for {model_for_validation} must be one of: {', '.join(allowed_resolutions)}",
+        )
 
     aspect_ratio = (raw.get("aspect_ratio") or "").strip() or "16:9"
-    if aspect_ratio not in ASPECT_RATIOS:
-        add_error("aspect_ratio", f"Aspect ratio must be one of: {', '.join(ASPECT_RATIOS)}")
+    allowed_aspects = allowed_aspect_ratios_for_model(model_for_validation)
+    if aspect_ratio not in allowed_aspects:
+        add_error("aspect_ratio", f"Aspect ratio must be one of: {', '.join(allowed_aspects)}")
 
     seed_text = (raw.get("seed") or "").strip()
     seed = -1
@@ -1284,6 +1510,13 @@ def validate_batch_import_row(row: dict) -> tuple[dict | None, list[dict]]:
             continue
 
         reference_paths.append(str(path))
+
+    reference_limit = reference_file_limit_for_model(model_for_validation)
+    if len(reference_paths) > reference_limit:
+        add_error(
+            "reference_paths",
+            f"{model_for_validation} supports up to {reference_limit} reference file(s). Current row has {len(reference_paths)}.",
+        )
 
     if errors:
         return None, errors
@@ -1434,87 +1667,6 @@ def create_batch_import_tasks(
         "created_tasks": created_tasks,
         "continuation_group_count": len(count_by_group),
         "continuation_link_count": continuation_link_count,
-    }
-
-
-def parse_limited_int(value: str | int | None, *, default: int, minimum: int, maximum: int) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return default
-
-    return max(minimum, min(maximum, parsed))
-
-
-def build_night_mode_preview_plan(
-    *,
-    max_tasks: int,
-    stop_on_consecutive_errors: int,
-    tasks: list[dict] | None = None,
-) -> dict:
-    if tasks is None:
-        tasks = active_project_tasks(limit=1000)
-
-    queued_tasks = [task for task in tasks if task.get("status") == "queued"]
-    selected_tasks = queued_tasks[:max_tasks]
-    completed_task_ids = {
-        int(task["id"])
-        for task in tasks
-        if task.get("status") == "completed" and task.get("id") is not None
-    }
-    selected_task_ids = {
-        int(task["id"])
-        for task in selected_tasks
-        if task.get("id") is not None
-    }
-
-    task_summaries = []
-    dependent_continuation_count = 0
-    blocked_by_parent_count = 0
-
-    for index, task in enumerate(selected_tasks, start=1):
-        params = task.get("params") or {}
-        parent_task_id = params.get("parent_task_id")
-        continuation_mode = params.get("continuation_mode")
-        is_dependent = continuation_mode == "last_frame_as_reference" and parent_task_id is not None
-        parent_ready = True
-
-        if is_dependent:
-            dependent_continuation_count += 1
-            try:
-                parent_id_int = int(parent_task_id)
-            except (TypeError, ValueError):
-                parent_id_int = None
-
-            parent_ready = parent_id_int in completed_task_ids or parent_id_int in selected_task_ids
-            if not parent_ready:
-                blocked_by_parent_count += 1
-
-        task_summaries.append(
-            {
-                "index": index,
-                "task_id": task.get("id"),
-                "model": task.get("model") or params.get("model"),
-                "episode_name": params.get("episode_name") or "Episode_01",
-                "scene_name": params.get("scene_name") or "Scene_001",
-                "continuation_mode": continuation_mode,
-                "parent_task_id": parent_task_id,
-                "parent_ready": parent_ready,
-                "prompt": (task.get("prompt") or "")[:160],
-            }
-        )
-
-    return {
-        "status": "preview",
-        "max_tasks": max_tasks,
-        "stop_on_consecutive_errors": stop_on_consecutive_errors,
-        "queued_count": len(queued_tasks),
-        "selected_count": len(selected_tasks),
-        "dependent_continuation_count": dependent_continuation_count,
-        "blocked_by_parent_count": blocked_by_parent_count,
-        "no_parallel_dependent_continuation_chains": True,
-        "new_paid_submit_started": False,
-        "tasks": task_summaries,
     }
 
 
@@ -1682,6 +1834,40 @@ def update_api_settings_endpoint(
     )
 
 
+@app.post("/update-output-root", response_class=HTMLResponse)
+def update_output_root_endpoint(request: Request, output_root_path: str = Form("")):
+    try:
+        output_root = normalize_output_root_input(output_root_path)
+        output_root.mkdir(parents=True, exist_ok=True)
+        os.environ["OUTPUT_ROOT"] = str(output_root)
+        update_env_values({"OUTPUT_ROOT": str(output_root)})
+
+        active_name = projects_module.get_active_project_name()
+        state = projects_module.set_active_project(active_name)
+        message = (
+            f"Output root changed to '{output_root}'. "
+            f"Active project is now '{state['active_project_name']}' in the new root."
+        )
+    except Exception as exc:
+        message = f"Output root was not changed: {type(exc).__name__}: {exc}"
+
+    return templates.TemplateResponse(
+        "index.html",
+        base_context(request, message=message),
+    )
+
+
+@app.post("/choose-output-root")
+def choose_output_root_endpoint():
+    try:
+        return {"path": choose_output_root_dialog()}
+    except Exception as exc:
+        return JSONResponse(
+            {"path": "", "error": f"{type(exc).__name__}: {exc}"},
+            status_code=500,
+        )
+
+
 @app.post("/delete-project", response_class=HTMLResponse)
 def delete_project_endpoint(request: Request, project_name: str = Form("")):
     try:
@@ -1740,14 +1926,30 @@ async def add_to_queue(
     return_last_frame: str | None = Form(None),
     reference_files: list[UploadFile] = File(default=[]),
     existing_reference_paths: list[str] = Form(default=[]),
+    existing_reference_metadata: list[str] = Form(default=[]),
 ):
     model = normalize_model(model)
+    duration = coerce_duration_for_model(model, duration)
+    resolution = coerce_resolution_for_model(model, resolution)
+    aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     queue_dir = projects_module.get_active_project_dir() / "queue_tasks" / f"queued_{timestamp}"
     refs_dir = queue_dir / "refs"
-    queue_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = safe_existing_reference_refs(existing_reference_paths)
+    saved_refs = safe_existing_reference_refs(existing_reference_paths, existing_reference_metadata)
+    over_limit, ref_count, ref_limit = reference_count_exceeds_model_limit(
+        model=model,
+        existing_refs=saved_refs,
+        reference_files=reference_files,
+    )
+    if over_limit:
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=reference_limit_message(model=model, count=ref_count, limit=ref_limit)),
+            status_code=400,
+        )
+
+    queue_dir.mkdir(parents=True, exist_ok=True)
     saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="queue_upload"))
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
@@ -1823,6 +2025,7 @@ async def update_queued_task(
     return_last_frame: str | None = Form(None),
     reference_files: list[UploadFile] = File(default=[]),
     existing_reference_paths: list[str] = Form(default=[]),
+    existing_reference_metadata: list[str] = Form(default=[]),
 ):
     task = get_task(task_id)
     if not task:
@@ -1834,11 +2037,26 @@ async def update_queued_task(
         return templates.TemplateResponse("index.html", base_context(request, message=message))
 
     model = normalize_model(model)
+    duration = coerce_duration_for_model(model, duration)
+    resolution = coerce_resolution_for_model(model, resolution)
+    aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
     task_project_dir = Path((task.get("params") or {}).get("project_dir") or projects_module.get_active_project_dir())
     refs_dir = task_project_dir / "queue_tasks" / f"task_{task_id:06d}" / "refs"
-    refs_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = safe_existing_reference_refs(existing_reference_paths)
+    saved_refs = safe_existing_reference_refs(existing_reference_paths, existing_reference_metadata)
+    over_limit, ref_count, ref_limit = reference_count_exceeds_model_limit(
+        model=model,
+        existing_refs=saved_refs,
+        reference_files=reference_files,
+    )
+    if over_limit:
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=reference_limit_message(model=model, count=ref_count, limit=ref_limit)),
+            status_code=400,
+        )
+
+    refs_dir.mkdir(parents=True, exist_ok=True)
     saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="queue_edit_upload"))
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
@@ -1912,6 +2130,9 @@ async def add_continuation_chain(
     reference_files: list[UploadFile] = File(default=[]),
 ):
     model = normalize_model(model)
+    duration = coerce_duration_for_model(model, duration)
+    resolution = coerce_resolution_for_model(model, resolution)
+    aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
 
     try:
         prompts = parse_chain_prompts(chain_prompts)
@@ -1925,6 +2146,18 @@ async def add_continuation_chain(
     chain_id = f"chain_{timestamp}_{uuid.uuid4().hex[:8]}"
     queue_dir = projects_module.get_active_project_dir() / "queue_tasks" / chain_id
     refs_dir = queue_dir / "shared_refs"
+
+    over_limit, ref_count, ref_limit = reference_count_exceeds_model_limit(
+        model=model,
+        reference_files=reference_files,
+    )
+    if over_limit:
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=reference_limit_message(model=model, count=ref_count, limit=ref_limit)),
+            status_code=400,
+        )
+
     queue_dir.mkdir(parents=True, exist_ok=True)
 
     saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="chain_upload")
@@ -2094,38 +2327,6 @@ async def batch_import(
     )
 
 
-@app.post("/night-mode-preview", response_class=HTMLResponse)
-def night_mode_preview(
-    request: Request,
-    max_tasks: int = Form(5),
-    stop_on_consecutive_errors: int = Form(1),
-):
-    max_tasks = parse_limited_int(max_tasks, default=5, minimum=1, maximum=50)
-    stop_on_consecutive_errors = parse_limited_int(
-        stop_on_consecutive_errors,
-        default=1,
-        minimum=1,
-        maximum=10,
-    )
-    report = build_night_mode_preview_plan(
-        max_tasks=max_tasks,
-        stop_on_consecutive_errors=stop_on_consecutive_errors,
-    )
-
-    return templates.TemplateResponse(
-        "index.html",
-        base_context(
-            request,
-            message=(
-                f"Night Mode preview selected {report['selected_count']} queued task(s). "
-                "No paid generation was started."
-            ),
-            night_mode_report=report,
-        ),
-    )
-
-
-
 @app.post("/start-queue-once", response_class=HTMLResponse)
 def start_queue_once(request: Request):
     stale_cleanup = cleanup_processing_without_request_id()
@@ -2160,10 +2361,24 @@ async def draft_task(
     reference_files: list[UploadFile] = File(default=[]),
 ):
     model = normalize_model(model)
+    duration = coerce_duration_for_model(model, duration)
+    resolution = coerce_resolution_for_model(model, resolution)
+    aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     draft_dir = projects_module.get_active_project_dir() / "gui_drafts" / f"draft_{timestamp}"
     refs_dir = draft_dir / "refs"
+
+    over_limit, ref_count, ref_limit = reference_count_exceeds_model_limit(
+        model=model,
+        reference_files=reference_files,
+    )
+    if over_limit:
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=reference_limit_message(model=model, count=ref_count, limit=ref_limit)),
+            status_code=400,
+        )
 
     saved_refs = await save_uploaded_reference_files(reference_files, refs_dir, source="draft_upload")
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
@@ -2387,11 +2602,28 @@ async def run_single_generation(
     return_last_frame: str | None = Form(None),
     reference_files: list[UploadFile] = File(default=[]),
     existing_reference_paths: list[str] = Form(default=[]),
+    existing_reference_metadata: list[str] = Form(default=[]),
 ):
     model = normalize_model(model)
+    duration = coerce_duration_for_model(model, duration)
+    resolution = coerce_resolution_for_model(model, resolution)
+    aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
     safe_name = normalize_single_generation_name(generation_name)
     episode_name = safe_name
     scene_name = "Single_Generation"
+    saved_refs = safe_existing_reference_refs(existing_reference_paths, existing_reference_metadata)
+    over_limit, ref_count, ref_limit = reference_count_exceeds_model_limit(
+        model=model,
+        existing_refs=saved_refs,
+        reference_files=reference_files,
+    )
+    if over_limit:
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=reference_limit_message(model=model, count=ref_count, limit=ref_limit)),
+            status_code=400,
+        )
+
     take_paths = allocate_take_paths(
         project_name=projects_module.get_active_project_name(),
         episode_name=episode_name,
@@ -2401,7 +2633,6 @@ async def run_single_generation(
     refs_dir = run_dir / "refs"
     refs_dir.mkdir(parents=True, exist_ok=True)
 
-    saved_refs = safe_existing_reference_refs(existing_reference_paths)
     saved_refs.extend(await save_uploaded_reference_files(reference_files, refs_dir, source="single_generation_upload"))
     prompt = normalize_prompt_reference_tokens(prompt, saved_refs)
 
@@ -2667,12 +2898,67 @@ def health():
     return {
         "ok": True,
         "stage": "product_ui",
+        "version": APP_VERSION,
+        "release_tag": APP_RELEASE_TAG,
         "api_key_set": bool(SEGMIND_API_KEY),
         "default_model": SEGMIND_MODEL,
         "available_models": [item["id"] for item in MODEL_CHOICES],
         "output_dir": str(projects_module.get_active_project_dir()),
         "queue_tasks_count": len(active_project_tasks(limit=1000)),
     }
+
+
+@app.get("/update-status")
+def update_status():
+    return UPDATE_MANAGER.get_update_state()
+
+
+@app.post("/check-updates")
+def check_updates(request: Request):
+    if not request_is_local(request):
+        return JSONResponse({"error": "Update checks are only available locally."}, status_code=403)
+    return UPDATE_MANAGER.check_for_updates()
+
+
+@app.post("/update-download/start")
+def start_update_download(request: Request, token: str = Form("")):
+    try:
+        validate_local_token(request, token)
+        return UPDATE_MANAGER.start_download_background()
+    except Exception as exc:
+        return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=400)
+
+
+@app.get("/update-download/status")
+def update_download_status():
+    return UPDATE_MANAGER.get_download_state()
+
+
+@app.post("/update-launch-installer")
+def launch_update_installer(request: Request, token: str = Form("")):
+    try:
+        validate_local_token(request, token)
+        state = UPDATE_MANAGER.get_download_state()
+        if not state.get("complete") or not state.get("path"):
+            raise ValueError("Installer is not downloaded yet.")
+        installer_path = Path(state["path"])
+        if not installer_path.exists() or installer_path.suffix.lower() != ".exe":
+            raise ValueError("Downloaded installer is missing or invalid.")
+        subprocess.Popen([str(installer_path)], close_fds=True)
+        threading.Timer(1.0, lambda: os._exit(0)).start()
+        return {"ok": True, "message": "Installer launched. Takeflow is shutting down."}
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=400)
+
+
+@app.post("/shutdown")
+def shutdown_server(request: Request, token: str = Form("")):
+    try:
+        validate_local_token(request, token)
+        threading.Timer(0.5, lambda: os._exit(0)).start()
+        return {"ok": True, "message": "Takeflow server is shutting down."}
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=403)
 
 
 

@@ -26,11 +26,33 @@ def main():
         resolution="720p",
         aspect_ratio="16:9",
     )
+    standard_4k = estimate_seedance_cost_info(
+        model="seedance-2.0",
+        duration=4,
+        resolution="4k",
+        aspect_ratio="21:9",
+    )
+    mini = estimate_seedance_cost_info(
+        model="seedance-2.0-mini",
+        duration=10,
+        resolution="720p",
+        aspect_ratio="21:9",
+    )
+    mini_video = estimate_seedance_cost_info(
+        model="seedance-2.0-mini",
+        duration=4,
+        resolution="480p",
+        aspect_ratio="16:9",
+        reference_videos=["ref.mp4"],
+    )
     ok = [
         expect("fast_cost_present", fast is not None),
         expect("fast_cost_value", fast and fast["amount_usd"] == 0.2248),
         expect("fast_cost_label", cost_label(fast) == "~$0.2248 estimated"),
         expect("standard_cost_value", standard and standard["amount_usd"] == 0.756),
+        expect("standard_4k_cost_value", standard_4k and standard_4k["amount_usd"] == 5.4884),
+        expect("mini_cost_value", mini and mini["amount_usd"] == 0.76),
+        expect("mini_video_cost_value", mini_video and mini_video["amount_usd"] == 0.18),
     ]
     if all(ok):
         print("RESULT=COST_ESTIMATES_OK")

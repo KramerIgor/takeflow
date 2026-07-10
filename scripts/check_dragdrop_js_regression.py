@@ -1,8 +1,11 @@
 from pathlib import Path
 
+from frontend_static_utils import read_static_js
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HTML = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+APP_JS = read_static_js(PROJECT_ROOT)
 
 
 def expect(name: str, condition: bool) -> bool:
@@ -10,14 +13,14 @@ def expect(name: str, condition: bool) -> bool:
     return bool(condition)
 
 
-def slice_between(start: str, end: str) -> str:
-    start_index = HTML.find(start)
+def slice_between(start: str, end: str, *, source: str = HTML) -> str:
+    start_index = source.find(start)
     if start_index == -1:
         return ""
-    end_index = HTML.find(end, start_index + len(start))
+    end_index = source.find(end, start_index + len(start))
     if end_index == -1:
-        return HTML[start_index:]
-    return HTML[start_index:end_index]
+        return source[start_index:]
+    return source[start_index:end_index]
 
 
 def main() -> int:
@@ -26,10 +29,12 @@ def main() -> int:
     single_js = slice_between(
         'const form = document.querySelector(".single-generation-form")',
         'const form = document.querySelector(".queue-generation-form")',
+        source=APP_JS,
     )
     queue_js = slice_between(
         'const form = document.querySelector(".queue-generation-form")',
         'const storageKey = "seedance_gui_form_preferences_v1"',
+        source=APP_JS,
     )
 
     checks = [

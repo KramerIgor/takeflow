@@ -1,10 +1,21 @@
-# AGENTS.md — Seedance GUI project instructions
+# AGENTS.md — Takeflow project instructions
+
+Public contributor and coding-agent onboarding is documented in docs/AGENT_GUIDE.md. This file remains the authoritative repository-local rule set; both documents must be read before broad changes or release work.
 
 ## Project role
 
-This repository is the local Windows GUI for generating anime videos through Segmind Seedance 2.0 / Seedance 2.0 Fast.
+Takeflow is the local Windows GUI for generating videos through Segmind Seedance 2.0, Seedance 2.0 Mini and the legacy Seedance 2.0 Fast option.
 
-The project is not a generic API playground. The main goal is a practical local GUI with queue, project folders, episode/scene/take naming, continuation by last frame, batch import and night mode.
+Product tagline: Takeflow — локальная AI-video студия для сцен, дублей и очередей, созданная Игорем Олеговичем Крамером / IOKRAMER.
+
+Current public release target:
+
+    Version: 0.1.0beta
+    Tag: v0.1.0-beta
+
+Windows packaging uses PyInstaller plus Inno Setup. The installer must be per-user writable, must not include `.env`, and must not require Python, Node, npm or Git on the target machine. End-user updates use `update.json` plus a GitHub Release installer asset; do not implement `git pull` as an installed-app updater.
+
+The project is not a generic API playground. The main goal is a practical local GUI with queue, project folders, episode/scene/take naming, continuation by last frame and batch import.
 
 ## Current status
 
@@ -23,6 +34,8 @@ Do not work in the old WSL copy unless the user explicitly asks for migration or
 Output root:
 
     C:\AI_OUTPUT
+
+The Projects screen can change `OUTPUT_ROOT` from the GUI. This creates the selected root if needed and keeps the current active project name under the new root. Do not move or delete existing project folders automatically.
 
 Desktop launcher:
 
@@ -60,10 +73,6 @@ Stable Stage 9 complete backup:
 
     /home/iokramer/seedance_gui_backups/stable_stage9_complete_20260621_001912
 
-Pre Stage 10 night mode controls backup:
-
-    /home/iokramer/seedance_gui_backups/pre_stage10_night_mode_controls_20260621_002107
-
 Stable Stage 10 complete backup:
 
     /home/iokramer/seedance_gui_backups/stable_stage10_complete_20260621_003156
@@ -81,36 +90,47 @@ Stable Stage 11 complete backup:
 
 Current UI state:
 
-- Main tabs: Projects, Single Generation, History, Queue.
+- Main navigation is a left sidebar: Projects, Single Generation, Queue.
+- Single Generation and one-off History are one workspace: the generation form is central, and History is a compact right rail with its own scroll.
+- Queue is also a two-column workspace: queue controls/forms are central, and Queue / History is a compact right rail with its own scroll.
+- History rails use collapsed compact cards by default: preview, title, status and primary actions are visible; prompt, refs, settings, cost and debug/files are inside Details.
+- Single and Queue history rails have separate client-side pagination.
+- There is no separate primary History tab.
 - Continuation Chain is not a primary tab.
-- Single Generation starts in background, appears in History, and uses the shared concrete-task queue worker path.
+- Single Generation starts in background, appears in the right History rail, and uses the shared concrete-task queue worker path.
 - Single Generation and Queue both accept image/video/audio reference files through drag/drop or file picker.
+- Single Generation and Queue display attached references inside the prompt editor. Keep media thumbnails/badges, the compact Add tile, the `N/9` reference counter, hover/focus remove controls, the prompt-local `@` reference dropdown, and inline visual chips for saved `<@filename>` tokens.
 - Queue uses `reference_files`, not `reference_images`, for UI uploads.
 - Images are sent to the current Segmind API client; video/audio refs are stored with the task/history and shown in UI, but not sent to API yet.
 - Prompt reference tokens should be saved as `<@filename>`.
 - Main UI labels have EN/RU switching.
+- Frontend client behavior is modular: `app/static/app.js` is the ES module entrypoint and focused modules live in `app/static/js/`. Shared prompt reference UI helpers live in `app/static/js/reference-ui.js`. `app/templates/index.html` should stay focused on Jinja-rendered structure and small JSON/config handoff.
 
 Current verification:
 
     RESULT=STAGE11_UI_POLISH_OK
     RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=FRONTEND_MODULES_OK
+    RESULT=PROMPT_REFERENCE_COST_UI_OK
+    RESULT=FRONTEND_BROWSER_CDP_OK
 
 Current product behavior:
 
-- Per-generation cost display is implemented: prefer actual Segmind response cost fields, otherwise use official Seedance pricing estimates.
+- Per-generation cost display is implemented: forms show a local pre-submit estimate from model/duration/resolution/aspect/reference mode; saved results prefer actual Segmind response cost fields, otherwise use official Seedance pricing estimates.
 - Top bar balance reads Segmind credits through the read-only API-key endpoint `https://api.segmind.com/v1/get-user-credits`; do not print the API key or raw `.env`.
 - Dashboard billing endpoints under `cloud-api.segmind.com` require JWT cookies and are not needed for the local balance display.
-- Queue history uses card layout matching Single Generation history.
+- Queue history uses the same compact card pattern as Single Generation history, but it stays in the Queue right rail and does not mix with one-off history.
 - Queue `Edit prompt` and `Regenerate` route users into Single Generation for one selected item.
 - Queue `Edit in queue` updates one still-queued item in place without changing its queue position.
 - Queue `Remove from queue` is available only for still-queued/unsubmitted items and does not delete generated files.
 - Queue numbering is human-readable: `Queue #N` groups and `N-M` item labels; technical task ids stay in debug details.
-- While reference images are uploading, a Single Generation can be `processing` before Segmind has a request id; History shows this pre-submit stage explicitly.
+- While reference images are uploading, a Single Generation can be `processing` before Segmind has a request id; the right History rail shows this pre-submit stage explicitly.
+- The History rails have local refresh buttons. Do not reintroduce whole-page auto-refresh on Single Generation because it can clear the prompt form.
 - Reference image upload uses longer write/read timeouts and retries to reduce `WriteTimeout` failures before submit.
 - `scripts/check_dragdrop_js_regression.py` guards against queue-edit JavaScript leaking into Single Generation drag/drop code.
 - CSV batch import supports optional `continuation_group` and `continuation_index`; rows in the same group become dependent queue tasks using `last_frame_as_reference`.
 - Queue loop supports up to 50 tasks per paid run, enough for longer chained shot lists.
-- History, Queue, cleanup/recovery, Night Mode preview, and Start Queue Loop are scoped to the active project.
+- History, Queue, cleanup/recovery and Start Queue Loop are scoped to the active project.
 - Queue controls expose progress and estimated total queue cost; Start Full Queue launches the paid queue loop in a background thread and Start Next Item is the single-step action.
 
 
@@ -125,14 +145,14 @@ Final user MP4 files:
 Technical run archive:
 
     Project/runs/Episode_01_Scene_001_take_000001/
-      output.mp4
       prompt.txt
       params.json
       refs.json
       status.json
       summary.json
       errors.log
-      last_frame.png
+
+New runs must not duplicate media files in the run archive. Final MP4 files live in `Project/videos/`; returned final frames live in `Project/last_frames/`. Legacy `runs/<take>/output.mp4` and `runs/<take>/last_frame.png` remain readable for old tasks.
 
 Do not create new nested results/Episode/Scene/take folders.
 
@@ -197,6 +217,15 @@ For API contract tests, prefer:
 For final quality renders, use:
 
     seedance-2.0
+
+Current model capability rules:
+
+- `seedance-2.0`: supports `480p`, `720p`, `1080p`, `4k`; GUI allows durations 4-15 seconds.
+- `seedance-2.0-mini`: supports `480p`, `720p`; GUI allows durations 4, 5, 6, 8, 10, 12 and 15 seconds.
+- `seedance-2.0-fast`: legacy GUI option; keep it limited to `480p` and `720p` unless official Segmind docs for this endpoint are rechecked.
+- Do not show or submit `4k` for Mini or Fast.
+- Reference file limits are model-aware. Current Seedance 2.0 Base, Mini and Fast options allow 9 references; future models can set another `reference_file_limit`. Keep the prompt UI, form posts and CSV validation aligned.
+- Keep model-aware validation in sync across Single Generation, Queue, CSV import, History edit/regenerate, reference limits and cost estimates.
 
 Continuation should use the saved last_frame.png as one of the next task reference_images. It is not the default first_frame_url workflow.
 
@@ -272,30 +301,6 @@ Stage 8 regression checks still pass:
     RESULT=STAGE8_BACKEND_CHAINING_DRY_RUN_OK
     RESULT=STAGE8_TABBED_UI_OK
 
-## Stage 10 night mode safety controls
-
-Stage 10 Night Mode Safety Preview is implemented as a working baseline.
-
-Night mode preview route:
-
-    POST /night-mode-preview
-
-Behavior:
-
-- Night Mode Safety Preview is in the Queue tab.
-- It builds a queue run plan only.
-- It does not start the queue.
-- It does not call Segmind.
-- It does not create, update or delete queued tasks.
-- Controls include max_tasks and stop_on_consecutive_errors.
-- Report includes queued count, selected count, dependent continuation task count and parent-blocked count.
-- Dependent continuation chains stay sequential.
-- Existing paid queue buttons still require explicit user confirmation.
-
-Stage 10 dry-run passed:
-
-    RESULT=STAGE10_NIGHT_MODE_DRY_RUN_OK
-
 ## Stage 11 startup and diagnostics
 
 Stage 11 packaging, startup instructions and final diagnostics are implemented as a working baseline.
@@ -311,10 +316,16 @@ Default GUI URL:
 Final safe diagnostic command:
 
     .venv\Scripts\python.exe -u scripts\check_stage11_final_diagnostics.py
+    .venv\Scripts\python.exe -u scripts\check_frontend_modules.py
+    .venv\Scripts\python.exe -u scripts\check_prompt_reference_cost_ui.py
+
+Optional safe browser UI regression:
+
+    .venv\Scripts\python.exe -u scripts\check_frontend_browser_cdp.py
 
 The desktop launcher starts Uvicorn only. It does not start queue processing by itself.
 
-The final diagnostic command runs compile checks and safe dry-run checks. It does not start paid generation.
+The final diagnostic command runs compile checks and safe dry-run checks. The browser CDP check starts a temporary local GUI and verifies UI behavior only. Neither check starts paid generation.
 
 Final diagnostic result:
 
@@ -330,7 +341,7 @@ Before paid generation, explicitly state:
 
 and explain the exact purpose.
 
-Batch, night mode and continuation chains require explicit user confirmation.
+Batch and continuation chains require explicit user confirmation.
 
 ## Copyable command rule for ChatGPT
 
@@ -416,13 +427,13 @@ Current UI cleanup scope:
 
 - Drag-and-drop reference files are available on Single Generation and Queue forms.
 - Accept image, video, and audio reference files in GUI/storage/history.
-- Show attached references as chips/cards with image thumbnail or media badge, filename, and remove button.
+- Show attached references inside the prompt editor as compact chips/cards with image thumbnail or media badge, filename, and remove button.
 - Replace Episode/Scene in Single Generation with one optional `Name` field. If empty, backend should generate a safe name such as `generation00001-22062026`.
 - A separate `History` tab shows one-off Single Generation tasks/runs only, not queue/batch/continuation tasks.
 - In History, show video preview/player, name, prompt, attached references, model, duration, resolution, aspect ratio, seed, output filename/path, times if available, and status/error if failed.
 - Add `Edit prompt` and `Regenerate`.
 - `Regenerate` must show exactly: `This will start a paid generation. Continue?`
-- Add `@reference` prompt tokens for attached references and preserve those tokens in saved prompts.
+- Add `@reference` prompt tokens through the prompt-local dropdown. The visible editor is rich/contenteditable, but the hidden `textarea[name=prompt]` remains the backend source of truth and must preserve tokens as `<@filename>`.
 - If video/audio references are not supported by the Segmind API client, store them in GUI/storage/history and show `Stored in history; not sent to API yet`; leave video/audio API submission parked.
 
 Additional Codex local skills live in `.agents/skills`:

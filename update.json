@@ -1,0 +1,8 @@
+﻿{
+    "version":  "0.1.0beta",
+    "display_version":  "0.1.0 beta",
+    "release_tag":  "v0.1.0-beta",
+    "release_url":  "https://github.com/IOKRAMER/takeflow/releases/tag/v0.1.0-beta",
+    "installer_url":  "https://github.com/IOKRAMER/takeflow/releases/download/v0.1.0-beta/TakeflowSetup-0.1.0beta.exe",
+    "sha256":  "f85d0ed97d6a5840f7a55300007ddbd83d2563cdc20ecfc892f3ff5d29c1518b"
+}

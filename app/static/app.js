@@ -1,0 +1,13 @@
+import "./js/auto-refresh.js?v=20260709-video-only";
+import "./js/i18n.js?v=20260709-video-only";
+import "./js/navigation.js?v=20260709-video-only";
+import "./js/history-pagination.js?v=20260709-video-only";
+import "./js/history-rail.js?v=20260709-video-only";
+import "./js/model-constraints.js?v=20260709-video-only";
+import "./js/output-root.js?v=20260709-video-only";
+import "./js/reference-ui.js?v=20260709-video-only";
+import "./js/updates.js?v=20260709-video-only";
+import "./js/single-generation.js?v=20260709-video-only";
+import "./js/queue-form.js?v=20260709-video-only";
+import "./js/form-state.js?v=20260709-video-only";
+import "./js/shutdown.js?v=20260709-video-only";

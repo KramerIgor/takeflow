@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from frontend_static_utils import read_static_js
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_PATH = PROJECT_ROOT / "app" / "templates" / "index.html"
@@ -9,18 +11,37 @@ TEMPLATE_PATH = PROJECT_ROOT / "app" / "templates" / "index.html"
 
 def main() -> int:
     html = TEMPLATE_PATH.read_text(encoding="utf-8")
+    app_js = read_static_js(PROJECT_ROOT)
+    combined = html + "\n" + app_js
 
     required = [
         'localStorage.getItem("seedance_gui_active_tab_v1")',
-        'new Set(["single-history", "queue-workflow"])',
+        'new Set(["queue-workflow"])',
         "if (!refreshTabs.has(activeTab))",
         "window.location.reload()",
         'window.location.replace("/")',
+        "autoRefreshEnabled",
+        "refreshIntervalMs",
+        '<script type="module" src="/static/app.js?v={{ static_asset_version }}"></script>',
+        'event.target.closest("[data-refresh-history]")',
+        'const historyKind = refreshButton.dataset.refreshHistory || "single"',
+        'const selector = \'[data-history-rail-content="\' + historyKind + \'"]\'',
+        "document.querySelector(selector)",
+        'railContent.closest(".history-rail-panel")',
+        "freshContent = doc.querySelector(selector)",
+        'freshContent.closest(".history-rail-panel")',
+        "window.seedanceInitHistoryPagination()",
     ]
 
-    missing = [item for item in required if item not in html]
+    missing = [item for item in required if item not in combined]
     if missing:
         print("missing_refresh_guard_parts=" + repr(missing))
+        return 1
+
+    forbidden = ['new Set(["single-history", "queue-workflow"])']
+    present_forbidden = [item for item in forbidden if item in combined]
+    if present_forbidden:
+        print("forbidden_refresh_guard_parts=" + repr(present_forbidden))
         return 1
 
     print("REFRESH_GUARD_OK")

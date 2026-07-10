@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 import app.main as main
 from app.db import create_task, delete_task, update_task_fields
 from app.projects import get_active_project_dir, get_active_project_name, get_output_root
+from scripts.frontend_static_utils import read_static_js
 
 
 def expect(name: str, condition: bool) -> bool:
@@ -168,6 +169,24 @@ def main_check() -> int:
 
             backend_refs = main.safe_existing_reference_refs([str(external_ref)])
             backend_wsl_refs = main.safe_existing_reference_refs([wsl_ref_path])
+            renamed_ref = output_test_dir / "reference_01_taxedo_brew.png"
+            renamed_ref.write_bytes(b"fake")
+            preserved_name_refs = main.safe_existing_reference_refs(
+                [str(renamed_ref)],
+                [
+                    json.dumps(
+                        {
+                            "local_path": str(renamed_ref),
+                            "original_filename": "taxedo brew.png",
+                            "filename": "taxedo brew.png",
+                            "media_type": "image",
+                        }
+                    )
+                ],
+            )
+            template_text = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+            app_js_text = read_static_js(PROJECT_ROOT)
+            client_text = template_text + "\n" + app_js_text
 
             checks = [
                 expect("external_ref_outside_output_root", ref_outside_output_root),
@@ -183,6 +202,8 @@ def main_check() -> int:
                 expect("wsl_ref_preview_exposed_inside_output_root", len(wsl_refs) == 1 and bool(wsl_refs[0].get("preview_url"))),
                 expect("wsl_video_preview_url_present", bool(wsl_view_items[0].get("output_preview_url")) if wsl_view_items else False),
                 expect("backend_accepts_existing_wsl_ref", len(backend_wsl_refs) == 1 and backend_wsl_refs[0].get("local_path") == str(wsl_ref.resolve())),
+                expect("backend_preserves_existing_ref_original_name", len(preserved_name_refs) == 1 and preserved_name_refs[0].get("original_filename") == "taxedo brew.png"),
+                expect("frontend_sends_existing_ref_metadata", "existing_reference_metadata" in client_text),
             ]
         finally:
             for task_id in created_tasks:

@@ -131,12 +131,6 @@ CSV rows can opt into continuation chaining with continuation_group and continua
 
 The import path does not use first_frame_url.
 
-## Related Stage 10 status
-
-Stage 10 Night Mode Safety Preview is complete as a working baseline.
-
-The preview only plans a safe queue run. It does not start paid generation and does not run dependent continuation chains in parallel.
-
 ## Important rule
 
 Do not redo the API client. Upload asset, submit, polling and result fetch already exist.

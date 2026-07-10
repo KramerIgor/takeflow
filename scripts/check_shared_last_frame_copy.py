@@ -42,20 +42,21 @@ def main() -> int:
 
         checks = {
             "found": info.get("last_frame_found") is True,
-            "run_last_frame_exists": run_last_frame.exists(),
+            "run_last_frame_absent": not run_last_frame.exists(),
             "shared_last_frame_exists": shared_last_frame.exists(),
+            "last_frame_path_is_shared": info.get("last_frame_path") == str(shared_last_frame),
             "shared_path_recorded": info.get("last_frame_shared_path") == str(shared_last_frame),
-            "content_copied": shared_last_frame.read_bytes() == b"fake-last-frame",
+            "content_saved": shared_last_frame.read_bytes() == b"fake-last-frame",
         }
 
         for name, ok in checks.items():
             print(f"{name}={ok}")
 
         if all(checks.values()):
-            print("SHARED_LAST_FRAME_COPY_OK")
+            print("SHARED_LAST_FRAME_ONLY_OK")
             return 0
 
-    print("SHARED_LAST_FRAME_COPY_FAILED")
+    print("SHARED_LAST_FRAME_ONLY_FAILED")
     return 1
 
 

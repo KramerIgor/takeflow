@@ -13,7 +13,7 @@ def main() -> int:
     print("=== Worker API last-frame save check ===")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        run_dir = Path(temp_dir) / "run"
+        run_dir = Path(temp_dir) / "Project_A" / "runs" / "run"
         run_dir.mkdir(parents=True, exist_ok=True)
 
         fake_image_source = Path(temp_dir) / "fake_last_frame_source.png"
@@ -61,7 +61,8 @@ def main() -> int:
         finally:
             worker._download_file = original_download_file
 
-        last_frame_path = run_dir / "last_frame.png"
+        last_frame_path = run_dir.parent.parent / "last_frames" / f"{run_dir.name}_last_frame.png"
+        run_last_frame_path = run_dir / "last_frame.png"
 
         print("last_frame_found=", info.get("last_frame_found"), sep="")
         print("last_frame_source=", info.get("last_frame_source"), sep="")
@@ -70,6 +71,7 @@ def main() -> int:
         print("last_frame_candidate_score_positive=", (info.get("last_frame_candidate_score") or 0) > 0, sep="")
         print("last_frame_file_exists=", last_frame_path.exists(), sep="")
         print("last_frame_file_size=", last_frame_path.stat().st_size if last_frame_path.exists() else 0, sep="")
+        print("run_last_frame_absent=", not run_last_frame_path.exists(), sep="")
         print("video_only_last_frame_found=", no_frame_info.get("last_frame_found"), sep="")
         print("new_paid_submit_started=False")
 
@@ -81,6 +83,7 @@ def main() -> int:
             and (info.get("last_frame_candidate_score") or 0) > 0
             and last_frame_path.exists()
             and last_frame_path.stat().st_size > 0
+            and not run_last_frame_path.exists()
             and no_frame_info.get("last_frame_found") is False
         )
 

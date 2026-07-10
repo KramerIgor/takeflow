@@ -78,9 +78,9 @@ def main() -> int:
     take_dir.mkdir(parents=True, exist_ok=True)
 
     prompt = (
-        "A short 4-second cinematic anime test shot using image 1 as the main visual reference. "
+        "A short 4-second cinematic test shot using image 1 as the main visual reference. "
         "Preserve the mood, color palette, and location feeling from image 1. "
-        "Subtle camera push-in, gentle ambient motion, no text, no logos, clean anime video."
+        "Subtle camera push-in, gentle ambient motion, no text, no logos, clean video."
     )
 
     print("=== Uploading reference image to Segmind Storage ===")

@@ -17,11 +17,11 @@ def main() -> int:
 
     page = client.get("/")
     print("index_status_code=", page.status_code, sep="")
-    print("index_contains_seedance_gui=", "Seedance GUI" in page.text, sep="")
+    print("index_contains_takeflow=", "Takeflow" in page.text, sep="")
     print("index_contains_prompt=", "Prompt" in page.text, sep="")
     print("index_contains_reference_images=", "Reference images" in page.text, sep="")
 
-    if health.status_code == 200 and page.status_code == 200 and "Seedance GUI" in page.text:
+    if health.status_code == 200 and page.status_code == 200 and "Takeflow" in page.text:
         print("RESULT=GUI_SKELETON_OK")
         return 0
 

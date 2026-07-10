@@ -37,6 +37,13 @@ def _allocate_run_dir_for_task(params: dict) -> Path:
     return Path(_take_paths_for_task(params)["run_dir"])
 
 
+def _run_dir_for_task(params: dict) -> Path:
+    run_dir = params.get("run_dir") if isinstance(params, dict) else None
+    if run_dir:
+        return Path(run_dir)
+    return _allocate_run_dir_for_task(params)
+
+
 def _shared_last_frame_path_for_run_dir(run_dir: Path) -> Path:
     project_dir = run_dir.parent.parent
     last_frames_dir = project_dir / "last_frames"
@@ -60,16 +67,14 @@ def _save_api_last_frame_if_present(result_data: dict, run_dir: Path) -> dict:
             "last_frame_candidate_reason": None,
         }
 
-    last_frame_path = run_dir / "last_frame.png"
-    _download_file(candidate.url, last_frame_path)
     shared_last_frame_path = _shared_last_frame_path_for_run_dir(run_dir)
-    shutil.copy2(last_frame_path, shared_last_frame_path)
+    _download_file(candidate.url, shared_last_frame_path)
 
     return {
         "last_frame_found": True,
         "last_frame_source": "api",
         "last_frame_url": candidate.url,
-        "last_frame_path": str(last_frame_path),
+        "last_frame_path": str(shared_last_frame_path),
         "last_frame_shared_path": str(shared_last_frame_path),
         "last_frame_shared_windows_path": _to_windows_path(str(shared_last_frame_path)),
         "last_frame_key_path": candidate.key_path,
@@ -86,6 +91,15 @@ def _final_video_path_for_run_dir(run_dir: Path) -> Path:
     return videos_dir / f"{run_dir.name}.mp4"
 
 
+def _final_video_path_for_task(params: dict, run_dir: Path) -> Path:
+    video_path = params.get("video_path") if isinstance(params, dict) else None
+    if video_path:
+        path = Path(video_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+    return _final_video_path_for_run_dir(run_dir)
+
+
 def _is_last_frame_reference_continuation(params: dict) -> bool:
     if not isinstance(params, dict):
         return False
@@ -98,6 +112,19 @@ def _is_last_frame_reference_continuation(params: dict) -> bool:
 
 def _resolve_task_last_frame_path(task: dict) -> Path | None:
     candidates = []
+
+    run_dir = task.get("run_dir")
+    if run_dir:
+        try:
+            summary_path = Path(run_dir) / "summary.json"
+            if summary_path.exists():
+                summary = json.loads(summary_path.read_text(encoding="utf-8"))
+                for key in ("last_frame_shared_path", "last_frame_path"):
+                    value = summary.get(key)
+                    if value:
+                        candidates.append(Path(value))
+        except Exception:
+            pass
 
     run_dir = task.get("run_dir")
     if run_dir:
@@ -363,7 +390,7 @@ def process_next_queued_task_dry_run(*, project_name: str | None = None, project
 
     refs = continuation_preflight.get("refs") or refs
 
-    run_dir = _allocate_run_dir_for_task(params)
+    run_dir = _run_dir_for_task(params)
     run_dir.mkdir(parents=True, exist_ok=True)
     expected_video_path = _final_video_path_for_run_dir(run_dir)
 
@@ -496,7 +523,7 @@ def _process_queued_task_real(task: dict) -> dict:
         }
 
     refs = continuation_preflight.get("refs") or refs
-    run_dir = _allocate_run_dir_for_task(params)
+    run_dir = _run_dir_for_task(params)
     run_dir.mkdir(parents=True, exist_ok=True)
 
     _log(
@@ -711,11 +738,8 @@ def _process_queued_task_real(task: dict) -> dict:
         if not video_url:
             raise RuntimeError("No video URL found in result response.")
 
-        technical_video_path = run_dir / "output.mp4"
-        _download_file(video_url, technical_video_path)
-
-        video_path = _final_video_path_for_run_dir(run_dir)
-        shutil.copy2(technical_video_path, video_path)
+        video_path = _final_video_path_for_task(params, run_dir)
+        _download_file(video_url, video_path)
 
         last_frame_info = _save_api_last_frame_if_present(result_response.data, run_dir)
 
@@ -737,7 +761,7 @@ def _process_queued_task_real(task: dict) -> dict:
             "inference_time": inference_time,
             "video_path": str(video_path),
             "cost_info": build_cost_info(result_response.data, model=model, duration=params.get("duration"), resolution=params.get("resolution"), aspect_ratio=params.get("aspect_ratio"), refs=refs),
-            "technical_output_path": str(technical_video_path),
+            "technical_output_path": None,
             "video_size_bytes": video_path.stat().st_size,
             **last_frame_info,
         }

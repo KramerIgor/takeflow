@@ -46,6 +46,7 @@ fs.mkdirSync(profileDir, { recursive: true });
 const browser = spawn(browserPath, [
   "--headless=new",
   "--disable-gpu",
+  "--no-sandbox",
   "--no-first-run",
   "--disable-extensions",
   "--remote-debugging-port=" + port,

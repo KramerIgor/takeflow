@@ -49,7 +49,7 @@ def main() -> int:
     checks = [
         expect("module_script_tag", '<script type="module" src="/static/app.js?v={{ static_asset_version }}"></script>' in TEMPLATE),
         expect("old_defer_script_absent", '<script src="/static/app.js" defer></script>' not in TEMPLATE),
-        expect("module_import_cache_bust_present", "?v=20260709-video-only" in ENTRY_TEXT),
+        expect("module_import_cache_bust_present", "?v=20260710-release-status" in ENTRY_TEXT),
         expect(
             "entrypoint_is_import_map",
             all(f'./js/{name}' in ENTRY_TEXT for name in expected_modules if name != "reference-ui.js"),

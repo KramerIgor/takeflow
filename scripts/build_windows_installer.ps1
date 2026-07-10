@@ -71,10 +71,10 @@ Write-Host "Installer: $InstallerPath"
 Write-Host "SHA256: $Hash"
 
 if (-not $ReleaseUrl) {
-    $ReleaseUrl = "https://github.com/IOKRAMER/takeflow/releases/tag/$ReleaseTag"
+    $ReleaseUrl = "https://github.com/KramerIgor/takeflow/releases/tag/$ReleaseTag"
 }
 if (-not $InstallerUrl) {
-    $InstallerUrl = "https://github.com/IOKRAMER/takeflow/releases/download/$ReleaseTag/TakeflowSetup-$AppVersion.exe"
+    $InstallerUrl = "https://github.com/KramerIgor/takeflow/releases/download/$ReleaseTag/TakeflowSetup-$AppVersion.exe"
 }
 
 $Manifest = [ordered]@{

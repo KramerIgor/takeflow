@@ -13,7 +13,7 @@ import httpx
 from app.version import APP_RELEASE_TAG, APP_VERSION, APP_VERSION_DISPLAY
 
 
-DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/IOKRAMER/takeflow/main/update.json"
+DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/KramerIgor/takeflow/main/update.json"
 UPDATE_MANIFEST_URL = os.getenv("TAKEFLOW_UPDATE_MANIFEST_URL", DEFAULT_UPDATE_MANIFEST_URL).strip()
 UPDATE_TIMEOUT_SECONDS = 5.0
 

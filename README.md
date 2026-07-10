@@ -8,7 +8,7 @@ Current release: **0.1.0 beta** (v0.1.0-beta).
 
 ## Download for Windows
 
-Download the latest installer from [GitHub Releases](https://github.com/IOKRAMER/takeflow/releases/latest):
+Download the latest installer from [GitHub Releases](https://github.com/KramerIgor/takeflow/releases/latest):
 
 1. Download TakeflowSetup-*.exe.
 2. Run the installer.
@@ -55,7 +55,7 @@ Requirements:
 Setup:
 
 ~~~powershell
-git clone https://github.com/IOKRAMER/takeflow.git
+git clone https://github.com/KramerIgor/takeflow.git
 Set-Location -LiteralPath '.\takeflow'
 py -3.12 -m venv .venv
 & '.\.venv\Scripts\python.exe' -m pip install -r requirements.txt

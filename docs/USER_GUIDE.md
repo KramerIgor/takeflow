@@ -16,14 +16,14 @@ The installer is approximately 20 MB. The installed application is approximately
 
 ## Install
 
-1. Open the [Takeflow Releases page](https://github.com/IOKRAMER/takeflow/releases/latest).
+1. Open the [Takeflow Releases page](https://github.com/KramerIgor/takeflow/releases/latest).
 2. Download TakeflowSetup-*.exe.
 3. Run the downloaded installer.
 4. Choose the installation folder.
 5. Leave **Create a desktop shortcut** enabled if desired.
 6. Finish the installation and launch Takeflow.
 
-The current beta is not digitally signed. Windows SmartScreen may display an unknown publisher warning. Verify that the installer came from the official IOKRAMER/takeflow release and compare its SHA-256 checksum with the release notes before continuing.
+The current beta is not digitally signed. Windows SmartScreen may display an unknown publisher warning. Verify that the installer came from the official KramerIgor/takeflow release and compare its SHA-256 checksum with the release notes before continuing.
 
 ## Start and Stop
 

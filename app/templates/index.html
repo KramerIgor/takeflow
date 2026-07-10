@@ -446,6 +446,32 @@
           <button type="button" data-lang-option="en" class="active">EN</button>
           <button type="button" data-lang-option="ru">RU</button>
         </div>
+        <div
+          class="release-status"
+          data-update-panel
+          data-state="{% if update_state.available %}available{% elif update_state.checking %}checking{% elif update_state.error %}error{% else %}current{% endif %}"
+          aria-live="polite"
+        >
+          <span class="release-status-indicator" aria-hidden="true"></span>
+          <span class="release-status-text" data-update-summary>
+            {% if update_state.available %}
+              <span data-i18n="update_available">Update available</span>
+            {% elif update_state.checking %}
+              <span data-i18n="update_checking">Checking...</span>
+            {% elif update_state.error %}
+              <span data-i18n="update_check_failed">Unable to connect</span>
+            {% else %}
+              <span data-i18n="update_current">Latest release</span>
+            {% endif %}
+          </span>
+          <button type="button" class="secondary-button release-action-button" data-check-updates {% if update_state.available %}hidden{% endif %} data-i18n="check_updates">Check</button>
+          <button type="button" class="secondary-button release-action-button" data-download-update {% if not update_state.available %}hidden{% endif %} data-i18n="download_update">Update</button>
+          <button type="button" class="paid-button release-action-button" data-launch-update hidden data-i18n="install_update">Install</button>
+          <span class="release-progress" data-update-progress hidden>
+            <span class="release-progress-bar"><span data-update-progress-bar></span></span>
+            <span data-update-progress-label></span>
+          </span>
+        </div>
         <div class="top-balance" title="{{ segmind_balance_hint }}">
           <span data-i18n="balance_label">{{ segmind_balance_label }}</span>
           <strong{% if not segmind_balance_available %} data-i18n="balance_unavailable"{% endif %}>{{ segmind_balance_value }}</strong>
@@ -459,31 +485,6 @@
         {{ message }}
       </section>
     {% endif %}
-
-    <section class="notice compact-notice update-notice" data-update-panel {% if not (update_state.available or update_state.checking or update_state.error) %}hidden{% endif %}>
-      <div>
-        <strong data-i18n="updates_title">Updates</strong>
-        <span data-update-summary>
-          {% if update_state.available %}
-            <span data-i18n="update_available">New version available</span>:
-            v{{ update_state.latest_display_version or update_state.latest_version }}
-          {% elif update_state.checking %}
-            <span data-i18n="update_checking">Checking for updates...</span>
-          {% elif update_state.error %}
-            <span data-i18n="update_check_failed">Update check failed</span>
-          {% endif %}
-        </span>
-      </div>
-      <div class="update-actions">
-        <button type="button" class="secondary-button" data-check-updates data-i18n="check_updates">Check</button>
-        <button type="button" class="secondary-button" data-download-update {% if not update_state.available %}hidden{% endif %} data-i18n="download_update">Download update</button>
-        <button type="button" class="paid-button" data-launch-update hidden data-i18n="install_update">Install update</button>
-      </div>
-      <div class="update-progress" data-update-progress hidden>
-        <div class="update-progress-bar"><span data-update-progress-bar></span></div>
-        <span data-update-progress-label></span>
-      </div>
-    </section>
 
     <div class="app-shell">
       <aside class="app-sidebar" aria-label="Main navigation">

@@ -101,6 +101,75 @@ h3 {
   gap: 8px;
 }
 
+.release-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.release-status-indicator {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.release-status[data-state="available"] .release-status-indicator {
+  background: var(--warn);
+}
+
+.release-status[data-state="checking"] .release-status-indicator,
+.release-status[data-state="downloading"] .release-status-indicator {
+  background: var(--accent);
+}
+
+.release-status[data-state="error"] .release-status-indicator {
+  background: var(--bad);
+}
+
+.release-status-text {
+  color: var(--soft);
+  font-weight: 650;
+}
+
+.release-action-button {
+  min-height: 27px;
+  padding: 4px 9px;
+  font-size: 11px;
+}
+
+.release-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.release-progress[hidden] {
+  display: none;
+}
+
+.release-progress-bar {
+  width: 72px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #0a0f16;
+}
+
+.release-progress-bar span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+}
+
 .language-switch {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -507,58 +576,6 @@ button:disabled {
   border-radius: 8px;
   background: #102219;
   color: #c7f4d4;
-}
-
-.compact-notice {
-  margin: 12px 0;
-}
-
-.update-notice {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  border-color: #3b526f;
-  background: #111b29;
-  color: var(--soft);
-}
-
-.update-notice[hidden] {
-  display: none;
-}
-
-.update-actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.update-progress {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.update-progress[hidden] {
-  display: none;
-}
-
-.update-progress-bar {
-  height: 8px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #0a0f16;
-}
-
-.update-progress-bar span {
-  display: block;
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), #8cc7ff);
 }
 
 .project-meta,
@@ -1296,21 +1313,26 @@ button:disabled {
   }
 
   .top-actions {
-    justify-items: start;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .release-status {
+    justify-content: flex-start;
+    min-width: 0;
   }
 
   .settings-grid,
   .project-meta,
-  .update-notice,
-  .update-progress,
   .output-root-settings .compact-form,
   .path-picker-row,
   .single-history-card {
     grid-template-columns: 1fr;
-  }
-
-  .update-actions {
-    justify-content: flex-start;
   }
 
   .grid,
@@ -1343,6 +1365,14 @@ button:disabled {
 
   .sidebar-nav {
     grid-template-columns: 1fr;
+  }
+
+  .release-status {
+    flex: 1 1 calc(100% - 90px);
+  }
+
+  .top-balance {
+    justify-items: start;
   }
 
   .grid,

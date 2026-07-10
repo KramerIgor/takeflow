@@ -33,6 +33,8 @@ def main() -> int:
     inno = (PROJECT_ROOT / "packaging" / "Takeflow.iss").read_text(encoding="utf-8")
     build_script = (PROJECT_ROOT / "scripts" / "build_windows_installer.ps1").read_text(encoding="utf-8")
     app_js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    template = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+    updates_js = (PROJECT_ROOT / "app" / "static" / "js" / "updates.js").read_text(encoding="utf-8")
 
     with TestClient(app) as client:
         page = client.get("/")
@@ -48,6 +50,10 @@ def main() -> int:
         expect("shutdown_button_present", "data-shutdown-server" in page.text),
         expect("shutdown_token_in_config", "shutdownToken" in page.text),
         expect("update_panel_present", "data-update-panel" in page.text),
+        expect("compact_header_updater_present", 'class="release-status"' in template),
+        expect("legacy_update_notice_absent", "update-notice" not in template),
+        expect("raw_update_error_hidden", '+ state.error' not in updates_js and '${state.error}' not in updates_js),
+        expect("public_repo_urls_current", "KramerIgor/takeflow" in readme and "KramerIgor/takeflow" in build_script),
         expect("update_status_endpoint_ok", update_status.status_code == 200),
         expect("download_status_endpoint_ok", download_status.status_code == 200),
         expect("launcher_exists", (PROJECT_ROOT / "takeflow_launcher.py").exists()),

@@ -27,14 +27,22 @@ document.addEventListener("DOMContentLoaded", function () {
     return body;
   }
 
-  function showPanel() {
-    panel.hidden = false;
-  }
-
   function setSummary(text) {
     if (summary) {
       summary.textContent = text;
     }
+  }
+
+  function setState(name) {
+    panel.dataset.state = name;
+  }
+
+  function showOnly(button) {
+    [checkButton, downloadButton, launchButton].forEach(function (candidate) {
+      if (candidate) {
+        candidate.hidden = candidate !== button;
+      }
+    });
   }
 
   function renderUpdateState(state) {
@@ -42,23 +50,21 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
     if (state.available) {
-      showPanel();
-      setSummary(
-        translate("update_available", "New version available") +
-          ": v" +
-          (state.latest_display_version || state.latest_version)
-      );
-      if (downloadButton) {
-        downloadButton.hidden = false;
-      }
+      setState("available");
+      setSummary(translate("update_available", "Update available"));
+      showOnly(downloadButton);
     } else if (state.checking) {
-      showPanel();
-      setSummary(translate("update_checking", "Checking for updates..."));
+      setState("checking");
+      setSummary(translate("update_checking", "Checking..."));
+      showOnly(checkButton);
     } else if (state.error) {
-      showPanel();
-      setSummary(translate("update_check_failed", "Update check failed") + ": " + state.error);
-    } else if (panel.hidden === false) {
-      setSummary(translate("update_current", "Takeflow is up to date."));
+      setState("error");
+      setSummary(translate("update_check_failed", "Unable to connect"));
+      showOnly(checkButton);
+    } else {
+      setState("current");
+      setSummary(translate("update_current", "Latest release"));
+      showOnly(checkButton);
     }
   }
 
@@ -66,30 +72,30 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!state) {
       return;
     }
-    if (state.active || state.complete || state.error) {
-      showPanel();
-      progress.hidden = false;
-    }
+    progress.hidden = !(state.active || state.complete || state.error);
     const percent = Number.isFinite(state.percent) ? Math.max(0, Math.min(100, state.percent)) : 0;
     if (progressBar) {
       progressBar.style.width = percent + "%";
     }
     if (state.active) {
+      setState("downloading");
+      setSummary(translate("update_available", "Update available"));
+      showOnly(null);
       progressLabel.textContent = translate("download_progress", "Downloading") + ": " + Math.round(percent) + "%";
       return;
     }
     if (state.complete) {
+      setState("available");
+      setSummary(translate("update_available", "Update available"));
       progressLabel.textContent = translate("download_complete", "Download complete.");
-      if (launchButton) {
-        launchButton.hidden = false;
-      }
-      if (downloadButton) {
-        downloadButton.hidden = true;
-      }
+      showOnly(launchButton);
       return;
     }
     if (state.error) {
-      progressLabel.textContent = translate("download_failed", "Download failed") + ": " + state.error;
+      setState("error");
+      setSummary(translate("update_check_failed", "Unable to connect"));
+      progressLabel.textContent = translate("download_failed", "Download failed");
+      showOnly(checkButton);
     }
   }
 
@@ -99,23 +105,33 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function pollDownload() {
-    const response = await fetch("/update-download/status", { cache: "no-store" });
-    const state = await response.json();
-    renderDownloadState(state);
-    if (!state.active && progressTimer) {
-      window.clearInterval(progressTimer);
-      progressTimer = null;
+    try {
+      const response = await fetch("/update-download/status", { cache: "no-store" });
+      const state = await response.json();
+      renderDownloadState(state);
+      if (!state.active && progressTimer) {
+        window.clearInterval(progressTimer);
+        progressTimer = null;
+      }
+    } catch (_error) {
+      renderDownloadState({ error: true, percent: 0 });
+      if (progressTimer) {
+        window.clearInterval(progressTimer);
+        progressTimer = null;
+      }
     }
   }
 
   if (checkButton) {
     checkButton.addEventListener("click", async function () {
       checkButton.disabled = true;
-      setSummary(translate("update_checking", "Checking for updates..."));
-      showPanel();
+      setState("checking");
+      setSummary(translate("update_checking", "Checking..."));
       try {
         const response = await fetch("/check-updates", { method: "POST" });
         renderUpdateState(await response.json());
+      } catch (_error) {
+        renderUpdateState({ error: true });
       } finally {
         checkButton.disabled = false;
       }
@@ -125,15 +141,22 @@ document.addEventListener("DOMContentLoaded", function () {
   if (downloadButton) {
     downloadButton.addEventListener("click", async function () {
       downloadButton.disabled = true;
+      setState("downloading");
       progress.hidden = false;
       progressLabel.textContent = translate("download_starting", "Starting download...");
-      const response = await fetch("/update-download/start", {
-        method: "POST",
-        body: tokenBody()
-      });
-      renderDownloadState(await response.json());
-      if (!progressTimer) {
-        progressTimer = window.setInterval(pollDownload, 700);
+      try {
+        const response = await fetch("/update-download/start", {
+          method: "POST",
+          body: tokenBody()
+        });
+        renderDownloadState(await response.json());
+        if (!progressTimer) {
+          progressTimer = window.setInterval(pollDownload, 700);
+        }
+      } catch (_error) {
+        renderDownloadState({ error: true, percent: 0 });
+      } finally {
+        downloadButton.disabled = false;
       }
     });
   }
@@ -155,5 +178,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  refreshUpdateState().catch(function () {});
+  refreshUpdateState().catch(function () {
+    renderUpdateState({ error: true });
+  });
 });

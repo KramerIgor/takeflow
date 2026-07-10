@@ -146,8 +146,10 @@ End-user updates use the GitHub update.json manifest. Never implement updates wi
 ## Documentation Ownership
 
 - README.md: public overview and developer quick start
+- README_RU.md: Russian mirror of the public overview and developer quick start
 - docs/USER_GUIDE.md: normal Windows user workflow
 - docs/MACOS_USER_GUIDE.md: normal macOS install, Gatekeeper and update workflow
+- docs/MACOS_USER_GUIDE_RU.md: Russian macOS install, Gatekeeper and update workflow
 - docs/AGENT_GUIDE.md: coding-agent and contributor workflow
 - AGENTS.md: mandatory repository-local operational rules
 - docs/PROJECT_STATE.md: detailed implementation state and historical context

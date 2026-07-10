@@ -1,5 +1,7 @@
 # Takeflow User Guide
 
+**English** | [Русский](USER_GUIDE_RU.md)
+
 This guide is for people installing and using Takeflow on Windows without a development environment.
 
 ## Requirements

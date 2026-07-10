@@ -1,5 +1,7 @@
 # Takeflow for macOS
 
+**English** | [Русский](MACOS_USER_GUIDE_RU.md)
+
 ## Installation
 
 1. Open the current Takeflow GitHub Release.
@@ -34,13 +36,3 @@ The **Projects** screen can select another writable project root. Takeflow never
 ## Updates
 
 Takeflow selects the update asset for the current Mac architecture. After downloading a DMG, it opens in Finder; replace the existing app in Applications after closing Takeflow.
-
-## Русская инструкция
-
-1. Для Mac с M1/M2/M3/M4 скачайте `AppleSilicon.dmg`; для старого Intel Mac скачайте `Intel.dmg`.
-2. Откройте DMG и перетащите **Takeflow** в **Applications**.
-3. Попробуйте открыть Takeflow один раз.
-4. После предупреждения откройте **Системные настройки → Конфиденциальность и безопасность**.
-5. В разделе безопасности нажмите **Всё равно открыть / Open Anyway** и подтвердите запуск.
-
-Это требуется только при первом запуске данной версии. Python, Homebrew и терминал обычному пользователю не нужны. Не отключайте Gatekeeper полностью.

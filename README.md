@@ -1,5 +1,7 @@
 # Takeflow
 
+**English** | [Русский](README_RU.md)
+
 **Takeflow — локальная AI-video студия для сцен, дублей и очередей, созданная Игорем Олеговичем Крамером / IOKRAMER.**
 
 Takeflow is a local Windows and macOS desktop interface for organizing projects and generating video through the Segmind Seedance API. The application opens in the browser and keeps project files on the user's computer.
@@ -96,7 +98,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File '.\scripts\build_windows_ins
 Output:
 
 ~~~text
-dist\installer\TakeflowSetup-0.1.0beta.exe
+dist\installer\TakeflowSetup-0.1.1beta.exe
 ~~~
 
 The build script also updates update.json with the release URLs and SHA-256 checksum.
@@ -120,7 +122,8 @@ The app is ad-hoc signed for bundle integrity but is not Apple-notarized. Do not
 
 - [User Guide (English)](docs/USER_GUIDE.md)
 - [Руководство пользователя (Русский)](docs/USER_GUIDE_RU.md)
-- [macOS User Guide / руководство](docs/MACOS_USER_GUIDE.md)
+- [macOS User Guide (English)](docs/MACOS_USER_GUIDE.md)
+- [Руководство macOS (Русский)](docs/MACOS_USER_GUIDE_RU.md)
 - [Agent and Contributor Guide](docs/AGENT_GUIDE.md)
 - [Project State](docs/PROJECT_STATE.md)
 - [Continuation Workflow](docs/CONTINUATION_WORKFLOW.md)

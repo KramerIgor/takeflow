@@ -26,8 +26,11 @@ def main() -> int:
     print("=== Release readiness check ===")
 
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    readme_ru = (PROJECT_ROOT / "README_RU.md").read_text(encoding="utf-8")
     user_guide = (PROJECT_ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
     user_guide_ru = (PROJECT_ROOT / "docs" / "USER_GUIDE_RU.md").read_text(encoding="utf-8")
+    macos_guide = (PROJECT_ROOT / "docs" / "MACOS_USER_GUIDE.md").read_text(encoding="utf-8")
+    macos_guide_ru = (PROJECT_ROOT / "docs" / "MACOS_USER_GUIDE_RU.md").read_text(encoding="utf-8")
     agent_guide = (PROJECT_ROOT / "docs" / "AGENT_GUIDE.md").read_text(encoding="utf-8")
     gitignore = (PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
     inno = (PROJECT_ROOT / "packaging" / "Takeflow.iss").read_text(encoding="utf-8")
@@ -70,7 +73,10 @@ def main() -> int:
         expect("gitignore_excludes_update_downloads", "data/updates/" in gitignore and "*.part" in gitignore),
         expect("frontend_update_shutdown_modules", "updates.js" in app_js and "shutdown.js" in app_js),
         expect("readme_mentions_installer", "Windows Installer" in readme and "GitHub Releases" in readme),
+        expect("readme_language_switch", "[Русский](README_RU.md)" in readme and "[English](README.md)" in readme_ru),
+        expect("russian_readme_complete", "Скачать для Windows" in readme_ru and "Скачать для macOS" in readme_ru and "Безопасность и приватность" in readme_ru),
         expect("user_guides_present", "Takeflow User Guide" in user_guide and "Руководство пользователя Takeflow" in user_guide_ru),
+        expect("macos_guides_bilingual", "Takeflow for macOS" in macos_guide and "Takeflow для macOS" in macos_guide_ru),
         expect("agent_guide_present", "Takeflow Agent and Contributor Guide" in agent_guide and "Safety Rules" in agent_guide),
     ]
 

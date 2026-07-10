@@ -360,3 +360,4 @@ first_frame_url is parked as a possible optional future mode only.
 - `scripts/build_macos_dmg.sh` creates ad-hoc signed Apple Silicon or Intel DMG files and checksum files.
 - `.github/workflows/build-macos.yml` builds and smoke-tests both architectures on real GitHub macOS runners before optional release upload.
 - The macOS educational beta is not Developer ID signed or notarized. Users follow Apple's one-time Privacy & Security → Open Anyway flow; global Gatekeeper bypass instructions are intentionally not provided.
+- GitHub onboarding is bilingual: `README.md` / `README_RU.md`, Windows user guides and separate full macOS EN/RU guides cross-link each other.

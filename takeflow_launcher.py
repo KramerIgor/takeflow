@@ -6,13 +6,14 @@ import time
 import traceback
 import webbrowser
 from datetime import datetime
-from pathlib import Path
 
 import httpx
 import uvicorn
 
+from app.runtime_paths import launcher_log_dir
 
-LOG_DIR = Path(os.getenv("LOCALAPPDATA", Path.home())) / "Takeflow" / "logs"
+
+LOG_DIR = launcher_log_dir()
 LOG_PATH = LOG_DIR / "launcher.log"
 
 

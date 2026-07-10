@@ -4,7 +4,7 @@ This document is the repository entrypoint for coding agents and contributors. R
 
 ## Product Boundary
 
-Takeflow is a local Windows GUI for Segmind Seedance video workflows. Preserve:
+Takeflow is a local Windows and macOS GUI for Segmind Seedance video workflows. Preserve:
 
 - Projects and output-root selection
 - Single Generation and its history rail
@@ -40,13 +40,14 @@ app/queue_worker.py         generation worker and queue processing
 app/segmind_client.py       external API boundary
 app/costing.py              display-layer price estimates
 app/storage.py              project/run/video path allocation
-app/updater.py              GitHub manifest and installer download
+app/runtime_paths.py        platform-specific user data, environment and log paths
+app/updater.py              platform-aware GitHub manifest and package download
 app/version.py              canonical application version
 app/templates/index.html    Jinja-rendered structure and JS config handoff
 app/static/style.css        application styles
 app/static/app.js           ES module entrypoint
 app/static/js/              focused frontend modules
-packaging/                  PyInstaller and Inno Setup definitions
+packaging/                  Windows and macOS PyInstaller plus Inno Setup definitions
 scripts/                    diagnostics and release build scripts
 ~~~
 
@@ -133,10 +134,20 @@ Before publishing:
 
 End-user updates use the GitHub update.json manifest. Never implement updates with git pull.
 
+### macOS
+
+- Build macOS packages only on macOS runners; PyInstaller output is OS-specific.
+- Maintain both `macos-arm64` and `macos-x64` assets.
+- Runtime state belongs in `~/Library/Application Support/Takeflow`, never inside `Takeflow.app`.
+- The unsigned educational build uses ad-hoc codesigning and must not be described as notarized.
+- `scripts/build_macos_dmg.sh` must produce a DMG, SHA-256 file and a bundle that passes `codesign --verify` plus `/health` smoke testing.
+- Publishing is handled by `.github/workflows/build-macos.yml` after an existing release tag is supplied explicitly.
+
 ## Documentation Ownership
 
 - README.md: public overview and developer quick start
 - docs/USER_GUIDE.md: normal Windows user workflow
+- docs/MACOS_USER_GUIDE.md: normal macOS install, Gatekeeper and update workflow
 - docs/AGENT_GUIDE.md: coding-agent and contributor workflow
 - AGENTS.md: mandatory repository-local operational rules
 - docs/PROJECT_STATE.md: detailed implementation state and historical context

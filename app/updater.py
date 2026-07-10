@@ -5,6 +5,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 import hashlib
 import os
+import platform
+import sys
 import threading
 import time
 
@@ -16,6 +18,30 @@ from app.version import APP_RELEASE_TAG, APP_VERSION, APP_VERSION_DISPLAY
 DEFAULT_UPDATE_MANIFEST_URL = "https://raw.githubusercontent.com/KramerIgor/takeflow/main/update.json"
 UPDATE_MANIFEST_URL = os.getenv("TAKEFLOW_UPDATE_MANIFEST_URL", DEFAULT_UPDATE_MANIFEST_URL).strip()
 UPDATE_TIMEOUT_SECONDS = 5.0
+
+
+def runtime_asset_key(system_name: str | None = None, machine_name: str | None = None) -> str:
+    system_value = (system_name or sys.platform).lower()
+    machine_value = (machine_name or platform.machine()).lower()
+    if system_value.startswith("win"):
+        return "windows-x64"
+    if system_value == "darwin":
+        return "macos-arm64" if machine_value in {"arm64", "aarch64"} else "macos-x64"
+    return f"{system_value}-{machine_value}".strip("-")
+
+
+def manifest_asset(manifest: dict, asset_key: str) -> dict:
+    assets = manifest.get("assets")
+    if isinstance(assets, dict):
+        selected = assets.get(asset_key)
+        if isinstance(selected, dict):
+            return selected
+    if asset_key == "windows-x64":
+        return {
+            "url": manifest.get("installer_url"),
+            "sha256": manifest.get("sha256"),
+        }
+    return {}
 
 
 def _version_key(value: str) -> tuple[int, int, int, int]:
@@ -80,8 +106,9 @@ class DownloadState:
 
 
 class UpdateManager:
-    def __init__(self, download_dir: Path):
+    def __init__(self, download_dir: Path, *, asset_key: str | None = None):
         self.download_dir = download_dir
+        self.asset_key = asset_key or runtime_asset_key()
         self._lock = threading.Lock()
         self.update_state = UpdateState()
         self.download_state = DownloadState()
@@ -102,6 +129,7 @@ class UpdateManager:
             "manifest_url": self.update_state.manifest_url,
             "error": self.update_state.error,
             "checked_at": self.update_state.checked_at,
+            "asset_key": self.asset_key,
         }
 
     def get_update_state(self) -> dict:
@@ -141,9 +169,10 @@ class UpdateManager:
                 manifest = response.json()
 
             latest_version = str(manifest.get("version") or manifest.get("latest_version") or "").strip()
-            installer_url = str(manifest.get("installer_url") or "").strip()
+            asset = manifest_asset(manifest, self.asset_key)
+            installer_url = str(asset.get("url") or asset.get("installer_url") or "").strip()
             release_url = str(manifest.get("release_url") or "").strip()
-            sha256 = str(manifest.get("sha256") or "").strip().lower()
+            sha256 = str(asset.get("sha256") or "").strip().lower()
             latest_display = str(manifest.get("display_version") or latest_version).strip()
             available = bool(latest_version and installer_url and is_newer_version(latest_version))
 
@@ -174,8 +203,9 @@ class UpdateManager:
 
     def _installer_filename(self, installer_url: str) -> str:
         name = Path(urlparse(installer_url).path).name
-        if not name.lower().endswith(".exe"):
-            name = "TakeflowSetup.exe"
+        expected_suffix = ".dmg" if self.asset_key.startswith("macos-") else ".exe"
+        if not name.lower().endswith(expected_suffix):
+            name = "Takeflow.dmg" if expected_suffix == ".dmg" else "TakeflowSetup.exe"
         safe = "".join(ch if ch.isalnum() or ch in "._-" else "_" for ch in name)
         return safe or "TakeflowSetup.exe"
 

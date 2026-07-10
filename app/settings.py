@@ -2,8 +2,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENV_PATH = PROJECT_ROOT / ".env"
+from app.runtime_paths import ENV_PATH, default_output_dir
 
 load_dotenv(ENV_PATH)
 
@@ -22,4 +21,4 @@ def normalize_runtime_path(path_value: str | Path) -> Path:
 SEGMIND_API_KEY = os.getenv("SEGMIND_API_KEY", "")
 SEGMIND_MODEL = os.getenv("SEGMIND_MODEL", "seedance-2.0")
 SEGMIND_API_BASE = os.getenv("SEGMIND_API_BASE", "https://api.segmind.com")
-OUTPUT_DIR = normalize_runtime_path(os.getenv("OUTPUT_DIR", "/mnt/c/AI_OUTPUT/Psailor_kun"))
+OUTPUT_DIR = normalize_runtime_path(os.getenv("OUTPUT_DIR", str(default_output_dir())))

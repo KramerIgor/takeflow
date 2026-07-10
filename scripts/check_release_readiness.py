@@ -43,8 +43,8 @@ def main() -> int:
         download_status = client.get("/update-download/status")
 
     checks = [
-        expect("version_constant_ok", APP_VERSION == "0.1.0beta"),
-        expect("release_tag_ok", APP_RELEASE_TAG == "v0.1.0-beta"),
+        expect("version_constant_ok", APP_VERSION == "0.1.1beta"),
+        expect("release_tag_ok", APP_RELEASE_TAG == "v0.1.1-beta"),
         expect("version_display_in_header", f"v{APP_VERSION_DISPLAY}" in page.text),
         expect("version_in_health", health.json().get("version") == APP_VERSION),
         expect("shutdown_button_present", "data-shutdown-server" in page.text),
@@ -58,6 +58,9 @@ def main() -> int:
         expect("download_status_endpoint_ok", download_status.status_code == 200),
         expect("launcher_exists", (PROJECT_ROOT / "takeflow_launcher.py").exists()),
         expect("pyinstaller_spec_exists", (PROJECT_ROOT / "packaging" / "pyinstaller_takeflow.spec").exists()),
+        expect("macos_pyinstaller_spec_exists", (PROJECT_ROOT / "packaging" / "pyinstaller_takeflow_macos.spec").exists()),
+        expect("macos_build_script_exists", (PROJECT_ROOT / "scripts" / "build_macos_dmg.sh").exists()),
+        expect("macos_workflow_exists", (PROJECT_ROOT / ".github" / "workflows" / "build-macos.yml").exists()),
         expect("inno_script_exists", "[Setup]" in inno and "DefaultDirName={localappdata}\\Takeflow" in inno),
         expect("installer_creates_shortcuts", "{autodesktop}" in inno and "{group}\\{#MyAppName}" in inno),
         expect("inno_does_not_package_env", ".env" not in inno),

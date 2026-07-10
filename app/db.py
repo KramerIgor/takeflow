@@ -6,8 +6,8 @@ import json
 import sqlite3
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / "data"
+from app.runtime_paths import DATA_DIR
+
 DB_PATH = DATA_DIR / "seedance_gui.sqlite3"
 
 ALLOWED_STATUSES = {

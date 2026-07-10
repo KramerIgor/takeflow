@@ -8,6 +8,7 @@ import re
 import secrets
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -34,6 +35,7 @@ from app.storage import allocate_take_paths, sanitize_folder_part
 from app.task_recovery import recover_task_by_existing_request
 from app.updater import UpdateManager
 from app.version import APP_RELEASE_TAG, APP_VERSION, APP_VERSION_DISPLAY
+from app.runtime_paths import UPDATE_DIR
 from app import projects as projects_module
 
 
@@ -114,7 +116,7 @@ APP_SUBTITLE = "Local AI-video studio for scenes, takes, and queues"
 APP_CREATOR = "Игорь Олегович Крамер / IOKRAMER"
 STATIC_ASSET_VERSION = "20260710-release-status"
 SHUTDOWN_TOKEN = secrets.token_urlsafe(32)
-UPDATE_MANAGER = UpdateManager(PROJECT_ROOT / "data" / "updates")
+UPDATE_MANAGER = UpdateManager(UPDATE_DIR)
 BALANCE_CACHE_SECONDS = 60
 _segmind_balance_cache: dict[str, object] = {"expires_at": 0.0, "context": None}
 QUEUE_LOOP_REFRESH_SECONDS = 15
@@ -2866,14 +2868,19 @@ def open_path(path: str):
             status_code=404,
         )
 
-    if target.is_file():
+    if sys.platform == "darwin":
+        command = ["open", "-R", str(target)] if target.is_file() else ["open", str(target)]
+        shell_name = "Finder"
+    elif os.name == "nt":
         windows_target = to_windows_path(str(target))
-        subprocess.Popen(["explorer.exe", "/select,", windows_target])
-        opened_text = f"Opened folder and selected file: {windows_target}"
+        command = ["explorer.exe", "/select,", windows_target] if target.is_file() else ["explorer.exe", windows_target]
+        shell_name = "Windows Explorer"
     else:
-        windows_target = to_windows_path(str(target))
-        subprocess.Popen(["explorer.exe", windows_target])
-        opened_text = f"Opened folder: {windows_target}"
+        command = ["xdg-open", str(target.parent if target.is_file() else target)]
+        shell_name = "file manager"
+
+    subprocess.Popen(command)
+    opened_text = f"Opened: {target}"
 
     return HTMLResponse(
         f"""
@@ -2884,7 +2891,7 @@ def open_path(path: str):
           <title>Opened path</title>
         </head>
         <body style="font-family: sans-serif; background: #111; color: #eee;">
-          <h3>Windows Explorer command sent</h3>
+          <h3>{shell_name} command sent</h3>
           <p>{opened_text}</p>
           <p>You can close this tab.</p>
         </body>
@@ -2942,9 +2949,11 @@ def launch_update_installer(request: Request, token: str = Form("")):
         if not state.get("complete") or not state.get("path"):
             raise ValueError("Installer is not downloaded yet.")
         installer_path = Path(state["path"])
-        if not installer_path.exists() or installer_path.suffix.lower() != ".exe":
+        expected_suffix = ".dmg" if sys.platform == "darwin" else ".exe"
+        if not installer_path.exists() or installer_path.suffix.lower() != expected_suffix:
             raise ValueError("Downloaded installer is missing or invalid.")
-        subprocess.Popen([str(installer_path)], close_fds=True)
+        command = ["open", str(installer_path)] if sys.platform == "darwin" else [str(installer_path)]
+        subprocess.Popen(command, close_fds=True)
         threading.Timer(1.0, lambda: os._exit(0)).start()
         return {"ok": True, "message": "Installer launched. Takeflow is shutting down."}
     except Exception as exc:

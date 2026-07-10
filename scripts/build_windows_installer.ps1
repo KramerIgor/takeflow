@@ -77,15 +77,18 @@ if (-not $InstallerUrl) {
     $InstallerUrl = "https://github.com/KramerIgor/takeflow/releases/download/$ReleaseTag/TakeflowSetup-$AppVersion.exe"
 }
 
-$Manifest = [ordered]@{
-    version = $AppVersion
-    display_version = $DisplayVersion
-    release_tag = $ReleaseTag
-    release_url = $ReleaseUrl
-    installer_url = $InstallerUrl
-    sha256 = $Hash
-}
-
 $ManifestPath = Join-Path $ProjectRoot "update.json"
-$Manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+& $Python ".\scripts\update_release_manifest.py" `
+    --manifest $ManifestPath `
+    --version $AppVersion `
+    --display-version $DisplayVersion `
+    --release-tag $ReleaseTag `
+    --release-url $ReleaseUrl `
+    --asset-key "windows-x64" `
+    --asset-url $InstallerUrl `
+    --sha256 $Hash `
+    --format "exe"
+if ($LASTEXITCODE -ne 0) {
+    throw "Update manifest generation failed with exit code $LASTEXITCODE."
+}
 Write-Host "Update manifest: $ManifestPath"

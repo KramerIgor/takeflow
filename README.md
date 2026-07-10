@@ -2,9 +2,9 @@
 
 **Takeflow — локальная AI-video студия для сцен, дублей и очередей, созданная Игорем Олеговичем Крамером / IOKRAMER.**
 
-Takeflow is a Windows desktop interface for organizing projects and generating video through the Segmind Seedance API. The application runs locally, opens in the browser, and keeps project files on the user's computer.
+Takeflow is a local Windows and macOS desktop interface for organizing projects and generating video through the Segmind Seedance API. The application opens in the browser and keeps project files on the user's computer.
 
-Current release: **0.1.0 beta** (v0.1.0-beta).
+Current release: **0.1.1 beta** (v0.1.1-beta).
 
 ## Download for Windows
 
@@ -18,6 +18,15 @@ Download the latest installer from [GitHub Releases](https://github.com/KramerIg
 Python, Node.js, npm and Git are not required for the installed application. The current beta installer is unsigned, so Windows SmartScreen may ask for confirmation.
 
 See the complete [English User Guide](docs/USER_GUIDE.md) or [Russian User Guide](docs/USER_GUIDE_RU.md).
+
+## Download for macOS
+
+The GitHub Release provides two ready-to-run disk images:
+
+- `Takeflow-*-macOS-AppleSilicon.dmg` for M1, M2, M3, M4 and newer Apple chips.
+- `Takeflow-*-macOS-Intel.dmg` for Intel Macs.
+
+Open the DMG and drag **Takeflow** to **Applications**. Python, Homebrew, Node.js and Git are not required. Because this educational beta is not registered with Apple, the first launch requires the one-time **System Settings → Privacy & Security → Open Anyway** confirmation. See the [macOS User Guide](docs/MACOS_USER_GUIDE.md).
 
 ## What Takeflow Does
 
@@ -46,7 +55,7 @@ The API key is stored locally and is excluded from Git. Never publish the local 
 
 ## Development
 
-Requirements:
+Windows development requirements:
 
 - Windows 10 or Windows 11, x64
 - Python 3.12
@@ -92,10 +101,26 @@ dist\installer\TakeflowSetup-0.1.0beta.exe
 
 The build script also updates update.json with the release URLs and SHA-256 checksum.
 
+## macOS Package Build
+
+macOS packages must be built on macOS. GitHub Actions runs the maintained Apple Silicon and Intel builds; local macOS contributors can run:
+
+~~~bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt pyinstaller
+.venv/bin/python -m compileall app scripts takeflow_launcher.py
+.venv/bin/python scripts/check_macos_release.py
+.venv/bin/python -m PyInstaller --version
+PATH="$PWD/.venv/bin:$PATH" bash scripts/build_macos_dmg.sh "$(uname -m)"
+~~~
+
+The app is ad-hoc signed for bundle integrity but is not Apple-notarized. Do not claim otherwise in release notes.
+
 ## Repository Guide
 
 - [User Guide (English)](docs/USER_GUIDE.md)
 - [Руководство пользователя (Русский)](docs/USER_GUIDE_RU.md)
+- [macOS User Guide / руководство](docs/MACOS_USER_GUIDE.md)
 - [Agent and Contributor Guide](docs/AGENT_GUIDE.md)
 - [Project State](docs/PROJECT_STATE.md)
 - [Continuation Workflow](docs/CONTINUATION_WORKFLOW.md)

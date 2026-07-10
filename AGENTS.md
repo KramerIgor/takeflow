@@ -4,16 +4,18 @@ Public contributor and coding-agent onboarding is documented in docs/AGENT_GUIDE
 
 ## Project role
 
-Takeflow is the local Windows GUI for generating videos through Segmind Seedance 2.0, Seedance 2.0 Mini and the legacy Seedance 2.0 Fast option.
+Takeflow is the local Windows and macOS GUI for generating videos through Segmind Seedance 2.0, Seedance 2.0 Mini and the legacy Seedance 2.0 Fast option.
 
 Product tagline: Takeflow — локальная AI-video студия для сцен, дублей и очередей, созданная Игорем Олеговичем Крамером / IOKRAMER.
 
 Current public release target:
 
-    Version: 0.1.0beta
-    Tag: v0.1.0-beta
+    Version: 0.1.1beta
+    Tag: v0.1.1-beta
 
 Windows packaging uses PyInstaller plus Inno Setup. The installer must be per-user writable, must not include `.env`, and must not require Python, Node, npm or Git on the target machine. End-user updates use `update.json` plus a GitHub Release installer asset; do not implement `git pull` as an installed-app updater.
+
+macOS packaging uses PyInstaller `BUNDLE`, ad-hoc codesigning and DMG images built on GitHub-hosted macOS runners. Keep Apple Silicon and Intel artifacts separate. macOS settings/history belong in `~/Library/Application Support/Takeflow` and logs in `~/Library/Logs/Takeflow`; never write runtime state inside the application bundle. The build is not Developer ID signed or notarized unless the user later provides an Apple Developer account.
 
 The project is not a generic API playground. The main goal is a practical local GUI with queue, project folders, episode/scene/take naming, continuation by last frame and batch import.
 

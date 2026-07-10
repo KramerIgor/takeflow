@@ -347,3 +347,16 @@ first_frame_url is parked as a possible optional future mode only.
 
 - Parallel queues.
 - Cost limits.
+
+## macOS productization pass — 2026-07-10
+
+- Release target advanced to `0.1.1beta` / `v0.1.1-beta`.
+- Windows runtime paths remain unchanged; no existing history or project data is migrated.
+- macOS settings and SQLite history use `~/Library/Application Support/Takeflow`.
+- macOS launcher logs use `~/Library/Logs/Takeflow` and default projects use `~/Movies/Takeflow`.
+- Finder integration uses `open` / `open -R`; Windows continues to use `explorer.exe`.
+- The update manifest supports `windows-x64`, `macos-arm64` and `macos-x64` assets while retaining legacy Windows fields.
+- `packaging/pyinstaller_takeflow_macos.spec` creates a background `Takeflow.app` bundle with bundle id `com.iokramer.takeflow`.
+- `scripts/build_macos_dmg.sh` creates ad-hoc signed Apple Silicon or Intel DMG files and checksum files.
+- `.github/workflows/build-macos.yml` builds and smoke-tests both architectures on real GitHub macOS runners before optional release upload.
+- The macOS educational beta is not Developer ID signed or notarized. Users follow Apple's one-time Privacy & Security → Open Anyway flow; global Gatekeeper bypass instructions are intentionally not provided.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import tempfile
 import sys
 
@@ -23,6 +24,7 @@ def main() -> int:
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "build-macos.yml").read_text(encoding="utf-8")
     runtime_paths = (PROJECT_ROOT / "app" / "runtime_paths.py").read_text(encoding="utf-8")
     main_py = (PROJECT_ROOT / "app" / "main.py").read_text(encoding="utf-8")
+    release_manifest = json.loads((PROJECT_ROOT / "update.json").read_text(encoding="utf-8-sig"))
 
     manifest = {
         "installer_url": "https://example.test/TakeflowSetup.exe",
@@ -43,6 +45,9 @@ def main() -> int:
         expect("manifest_selects_arm", manifest_asset(manifest, "macos-arm64").get("sha256") == "arm"),
         expect("manifest_selects_intel", manifest_asset(manifest, "macos-x64").get("sha256") == "intel"),
         expect("manifest_keeps_legacy_windows", manifest_asset(manifest, "windows-x64").get("sha256") == "legacy"),
+        expect("release_manifest_has_windows", bool(manifest_asset(release_manifest, "windows-x64").get("url"))),
+        expect("release_manifest_has_apple_silicon", bool(manifest_asset(release_manifest, "macos-arm64").get("url"))),
+        expect("release_manifest_has_intel", bool(manifest_asset(release_manifest, "macos-x64").get("url"))),
         expect("mac_download_keeps_dmg", mac_filename == "Takeflow-arm64.dmg"),
         expect("mac_bundle_configured", "BUNDLE(" in spec and 'bundle_identifier="com.iokramer.takeflow"' in spec),
         expect("mac_bundle_is_background_app", '"LSUIElement": True' in spec),

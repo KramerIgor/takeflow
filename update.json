@@ -10,6 +10,16 @@
       "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.1-beta/TakeflowSetup-0.1.1beta.exe",
       "sha256": "cb5d779724e6d2376cbf645becba70e7a3887cdbdd21ea46ba2b7e47d1eef1a4",
       "format": "exe"
+    },
+    "macos-arm64": {
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.1-beta/Takeflow-0.1.1beta-macOS-AppleSilicon.dmg",
+      "sha256": "f83a5973b8717fe258a8e4e4b47b8727798e7144f93760bd303a2a485c17b620",
+      "format": "dmg"
+    },
+    "macos-x64": {
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.1-beta/Takeflow-0.1.1beta-macOS-Intel.dmg",
+      "sha256": "53670d6d8537a3a867d11e3654ebe61f58eb3b47a447117d8e87a48d0cdd7079",
+      "format": "dmg"
     }
   }
 }

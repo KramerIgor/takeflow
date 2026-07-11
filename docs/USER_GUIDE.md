@@ -18,7 +18,7 @@ The installer is approximately 20 MB. The installed application is approximately
 
 ## Install
 
-1. Open the [Takeflow 0.1.2 beta release](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.2-beta).
+1. Open the [Takeflow 0.1.3 beta release](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta).
 2. Download TakeflowSetup-*.exe.
 3. Run the downloaded installer.
 4. Choose the installation folder.
@@ -37,7 +37,7 @@ Start Takeflow from:
 
 Takeflow starts a local server and opens http://127.0.0.1:7860. It does not expose the application to the public internet by default.
 
-Use **Quit / Выход** in the top bar to stop the local server. Closing only the browser tab may leave Takeflow running.
+Use **Quit / Выход** in the top bar to stop the local server. Takeflow attempts to close its tab; if the browser blocks that action, the final screen confirms that the tab can be closed safely.
 
 ## First Setup
 
@@ -52,6 +52,8 @@ Open **Projects / Проекты**.
 Takeflow does not move existing project folders when the output root changes.
 
 Never share screenshots containing an API key. Takeflow does not display the saved key after it is stored.
+
+While a generation is active, the History rail refreshes automatically without replacing the form. Its progress indicator is an estimate based on recent completed runs, not an exact value reported by Segmind.
 
 ## Single Generation
 

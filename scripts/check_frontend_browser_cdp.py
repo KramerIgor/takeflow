@@ -174,7 +174,9 @@ async function run() {
     moduleScripts: Array.from(document.querySelectorAll('script[type="module"]')).filter((node) => node.getAttribute("src")?.startsWith("/static/app.js")).length,
     overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
     width: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth
+    scrollWidth: document.documentElement.scrollWidth,
+    progressbarCount: document.querySelectorAll('[role="progressbar"].history-generation-progress').length,
+    progressValue: Number(document.querySelector('.history-generation-progress')?.getAttribute('aria-valuenow') || -1)
   }))()`);
 
   const tabs = await evalJs(`(() => {
@@ -270,10 +272,18 @@ async function run() {
     prompt.dispatchEvent(new Event("input", { bubbles: true }));
     document.querySelector('[data-refresh-history="single"]')?.click();
     await new Promise((resolve) => setTimeout(resolve, 1200));
+    let automaticRefreshSeen = false;
+    document.addEventListener("seedance:history-refreshed", function onRefresh(event) {
+      if (event.detail?.historyKind === "single") {
+        automaticRefreshSeen = true;
+      }
+    }, { once: true });
+    await new Promise((resolve) => setTimeout(resolve, 5200));
     return {
       active: document.querySelector('[data-tab-panel="single-generation"]')?.classList.contains("active") === true,
       prompt: prompt.value,
-      editorText: editor?.innerText || ""
+      editorText: editor?.innerText || "",
+      automaticRefreshSeen
     };
   })()`);
 
@@ -460,6 +470,7 @@ async function run() {
   const checks = {
     app_js_ready: initial.appJsReady && initial.moduleScripts === 1,
     desktop_no_overflow: !initial.overflow,
+    processing_progress_visible: initial.progressbarCount >= 1 && initial.progressValue >= 0 && initial.progressValue < 100,
     tabs_work: Object.values(tabs).every(Boolean),
     ru_en_placeholders: i18n.ru.placeholder === "Опишите видео-сцену..." && i18n.en.placeholder === "Describe the video scene...",
     bilingual_brand_copy: i18n.ru.subtitle === "Локальная AI-video студия" && i18n.en.subtitle === "Local AI-video studio" && i18n.ru.creator.includes("Игорь Олегович Крамер") && i18n.en.creator.includes("Igor Olegovich Kramer"),
@@ -467,7 +478,7 @@ async function run() {
     ru_add_tile_fits: i18n.ru.addLabel === "Файл" && !i18n.ru.addButtonOverflow,
     cost_estimate_live: costEstimate.expectedFastEstimate && costEstimate.expectedFastLongEstimate && costEstimate.expectedFastSquareEstimate && costEstimate.note.length > 0,
     text_to_audio_removed: textToAudioRemoved.noTab && textToAudioRemoved.noPanel && textToAudioRemoved.noForm && textToAudioRemoved.noRouteForm,
-    refresh_preserves_prompt: refresh.prompt === "BROWSER_CDP_REFRESH_GUARD_KEEP" && refresh.editorText.includes("BROWSER_CDP_REFRESH_GUARD_KEEP") && refresh.active,
+    refresh_preserves_prompt: refresh.prompt === "BROWSER_CDP_REFRESH_GUARD_KEEP" && refresh.editorText.includes("BROWSER_CDP_REFRESH_GUARD_KEEP") && refresh.active && refresh.automaticRefreshSeen,
     dragdrop_refs: dragdrop.singleCards >= 1 && dragdrop.queueCards >= 1 && dragdrop.queueTitle.includes("browser-queue-audio.mp3"),
     references_inside_prompt: dragdrop.singleInsidePrompt && dragdrop.queueInsidePrompt,
     reference_cards_are_visual_only: !dragdrop.singleCardText.includes("browser-single-ref.png"),
@@ -546,6 +557,42 @@ def main() -> int:
     env["PYTHON_DOTENV_DISABLED"] = "1"
     env["SEGMIND_API_KEY"] = ""
     env["OUTPUT_ROOT"] = str(SAFE_OUTPUT_ROOT)
+    env["OUTPUT_DIR"] = str(SAFE_OUTPUT_ROOT / "MyFirstProject")
+    env["TAKEFLOW_DATA_DIR"] = str(SAFE_OUTPUT_ROOT / f"browser_cdp_data_{port}")
+
+    seed_script = """
+from app.db import create_task, init_db, update_task_fields, utc_now
+init_db()
+task_id = create_task(
+    model="seedance-2.0-mini",
+    prompt="Browser-only progress check",
+    params={
+        "mode": "single_generation_paid",
+        "single_generation_name": "Browser progress check",
+        "project_name": "MyFirstProject",
+        "project_dir": r"%s",
+        "duration": 4,
+        "resolution": "480p",
+        "aspect_ratio": "16:9",
+        "seed": -1,
+    },
+    refs=[],
+    status="processing",
+)
+update_task_fields(task_id, started_at=utc_now())
+""" % str(SAFE_OUTPUT_ROOT / "MyFirstProject")
+    seed_result = subprocess.run(
+        [sys.executable, "-c", seed_script],
+        cwd=PROJECT_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if seed_result.returncode != 0:
+        print(seed_result.stdout, end="")
+        print("RESULT=FRONTEND_BROWSER_CDP_FAILED")
+        return 1
 
     out_log = SAFE_OUTPUT_ROOT / "browser_cdp_uvicorn.out.log"
     err_log = SAFE_OUTPUT_ROOT / "browser_cdp_uvicorn.err.log"

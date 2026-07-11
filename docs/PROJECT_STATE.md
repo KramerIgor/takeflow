@@ -184,14 +184,14 @@ Done:
 - Desktop launcher starts Uvicorn only.
 - Desktop launcher does not start queue processing by itself.
 - Final safe diagnostics script:
-  scripts/check_stage11_final_diagnostics.py
+  scripts/check_takeflow_release.py
 - Final diagnostics run compile checks, frontend module/static checks, Stage 10, Stage 9 and Stage 8 dry-run checks.
 - Final diagnostics do not start paid generation.
 - README includes startup, diagnostics and backup exclusion instructions.
 
-Stage 11 final diagnostics passed:
+Takeflow release diagnostics passed:
 
-    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=TAKEFLOW_RELEASE_DIAGNOSTICS_OK
     RESULT=COST_ESTIMATES_OK
     RESULT=QUEUE_HISTORY_CARDS_OK
 
@@ -221,7 +221,7 @@ Done:
 
 Safe UI polish check:
 
-    RESULT=STAGE11_UI_POLISH_OK
+    RESULT=TAKEFLOW_UI_QUALITY_OK
 
 Stable backup after Stage 11 UI polish and Stage 9 smoke-tests:
 
@@ -257,8 +257,8 @@ Done today:
 
 Verification passed:
 
-    RESULT=STAGE11_UI_POLISH_OK
-    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=TAKEFLOW_UI_QUALITY_OK
+    RESULT=TAKEFLOW_RELEASE_DIAGNOSTICS_OK
 
 Safe route checks passed without paid/API calls:
 
@@ -371,3 +371,11 @@ first_frame_url is parked as a possible optional future mode only.
 - Queue runs can be sequential or parallel with a user-selected concurrency of 1–10 and a maximum of 50 tasks per run.
 - Parallel waves include only independent or dependency-ready tasks. Continuation children wait until the parent completes.
 - Segmind publishes RPM limits but no stable per-model concurrency contract; Takeflow therefore keeps concurrency explicit and defaults to sequential mode.
+
+## Takeflow 0.1.3 beta — 2026-07-11
+
+- Active Single Generation and Queue history rails refresh every five seconds without reloading the form or clearing prompt/reference state.
+- Processing cards show accessible estimated progress based on recent completed runs with model defaults as a fallback. The value is explicitly approximate and never reaches 100% before completion.
+- Completed videos replace processing cards automatically as soon as the local task status changes.
+- Quit now handles backend errors, attempts to close the browser tab, and falls back to a finite safe-to-close screen instead of staying on “Shutting down”.
+- Product-level diagnostics are `scripts/check_takeflow_release.py` and `scripts/check_ui_quality.py`; old Stage 11 script names remain compatibility wrappers only.

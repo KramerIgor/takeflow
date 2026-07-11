@@ -6,11 +6,11 @@
 
 Takeflow is a local Windows and macOS desktop interface for organizing projects and generating video through the Segmind Seedance API. The application opens in the browser and keeps project files on the user's computer.
 
-Current release: **0.1.2 beta** (v0.1.2-beta).
+Current release: **0.1.3 beta** (v0.1.3-beta).
 
 ## Download for Windows
 
-Download the latest installer from [Takeflow 0.1.2 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.2-beta):
+Download the latest installer from [Takeflow 0.1.3 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta):
 
 1. Download TakeflowSetup-*.exe.
 2. Run the installer.
@@ -40,7 +40,7 @@ Open the DMG and drag **Takeflow** to **Applications**. Python, Homebrew, Node.j
 - Supports image, video and audio reference attachments in the UI.
 - Provides model-aware duration, resolution and reference limits.
 - Shows a local pre-submit cost estimate where public pricing is available.
-- Preserves prompts when history is refreshed.
+- Refreshes active history automatically without clearing the prompt and shows estimated generation progress.
 - Supports Russian and English UI.
 - Requires explicit confirmation before paid generation.
 
@@ -81,7 +81,7 @@ Safe diagnostics:
 
 ~~~powershell
 & '.\.venv\Scripts\python.exe' -m compileall app scripts takeflow_launcher.py
-& '.\.venv\Scripts\python.exe' -u scripts\check_stage11_final_diagnostics.py
+& '.\.venv\Scripts\python.exe' -u scripts\check_takeflow_release.py
 & '.\.venv\Scripts\python.exe' -u scripts\check_release_readiness.py
 ~~~
 
@@ -99,7 +99,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File '.\scripts\build_windows_ins
 Output:
 
 ~~~text
-dist\installer\TakeflowSetup-0.1.2beta.exe
+dist\installer\TakeflowSetup-0.1.3beta.exe
 ~~~
 
 The build script also updates update.json with the release URLs and SHA-256 checksum.

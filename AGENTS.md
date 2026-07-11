@@ -10,8 +10,8 @@ Product tagline: Takeflow — локальная AI-video студия для с
 
 Current public release target:
 
-    Version: 0.1.2beta
-    Tag: v0.1.2-beta
+    Version: 0.1.3beta
+    Tag: v0.1.3-beta
 
 Windows packaging uses PyInstaller plus Inno Setup. The installer must be per-user writable, must not include `.env`, and must not require Python, Node, npm or Git on the target machine. End-user updates use `update.json` plus a GitHub Release installer asset; do not implement `git pull` as an installed-app updater.
 
@@ -110,8 +110,8 @@ Current UI state:
 
 Current verification:
 
-    RESULT=STAGE11_UI_POLISH_OK
-    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=TAKEFLOW_UI_QUALITY_OK
+    RESULT=TAKEFLOW_RELEASE_DIAGNOSTICS_OK
     RESULT=FRONTEND_MODULES_OK
     RESULT=PROMPT_REFERENCE_COST_UI_OK
     RESULT=FRONTEND_BROWSER_CDP_OK
@@ -317,7 +317,7 @@ Default GUI URL:
 
 Final safe diagnostic command:
 
-    .venv\Scripts\python.exe -u scripts\check_stage11_final_diagnostics.py
+    .venv\Scripts\python.exe -u scripts\check_takeflow_release.py
     .venv\Scripts\python.exe -u scripts\check_frontend_modules.py
     .venv\Scripts\python.exe -u scripts\check_prompt_reference_cost_ui.py
 
@@ -331,7 +331,7 @@ The final diagnostic command runs compile checks and safe dry-run checks. The br
 
 Final diagnostic result:
 
-    RESULT=STAGE11_FINAL_DIAGNOSTICS_OK
+    RESULT=TAKEFLOW_RELEASE_DIAGNOSTICS_OK
 
 ## Cost rule
 

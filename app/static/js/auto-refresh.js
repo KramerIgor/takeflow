@@ -1,20 +1,46 @@
-// Auto refresh is limited to queue work so Single Generation prompt text is not lost.
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
   const config = window.seedanceConfig || {};
   if (!config.autoRefreshEnabled) {
     return;
   }
 
-  setTimeout(function () {
-    const activeTab = localStorage.getItem("seedance_gui_active_tab_v1") || "project-settings";
-    const refreshTabs = new Set(["queue-workflow"]);
-    if (!refreshTabs.has(activeTab)) {
+  const intervalMs = config.historyRefreshIntervalMs || config.refreshIntervalMs || 5000;
+  let refreshRunning = false;
+
+  function railNeedsRefresh(historyKind) {
+    const content = document.querySelector('[data-history-rail-content="' + historyKind + '"]');
+    const panel = content ? content.closest(".history-rail-panel") : null;
+    return panel && panel.dataset.historyAutoRefresh === "true";
+  }
+
+  async function refreshActiveHistory() {
+    if (refreshRunning || typeof window.seedanceRefreshHistoryRail !== "function") {
+      window.setTimeout(refreshActiveHistory, intervalMs);
       return;
     }
-    if (window.location.pathname === "/") {
-      window.location.reload();
-    } else {
-      window.location.replace("/");
+
+    const singleActive = railNeedsRefresh("single");
+    const queueActive = railNeedsRefresh("queue");
+    if (!singleActive && !queueActive) {
+      return;
     }
-  }, config.refreshIntervalMs || 15000);
-})();
+
+    refreshRunning = true;
+    try {
+      if (singleActive) {
+        await window.seedanceRefreshHistoryRail("single", { automatic: true });
+      }
+      if (queueActive) {
+        await window.seedanceRefreshHistoryRail("queue", { automatic: true });
+      }
+    } finally {
+      refreshRunning = false;
+    }
+
+    if (["single", "queue"].some(railNeedsRefresh)) {
+      window.setTimeout(refreshActiveHistory, intervalMs);
+    }
+  }
+
+  window.setTimeout(refreshActiveHistory, intervalMs);
+});

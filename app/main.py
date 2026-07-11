@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 import csv
@@ -114,7 +114,7 @@ SINGLE_GENERATION_MODES = {"single_generation_paid", "single_generation_regenera
 APP_TITLE = "Takeflow"
 APP_SUBTITLE = "Local AI-video studio"
 APP_CREATOR = "Igor Olegovich Kramer / IOKRAMER"
-STATIC_ASSET_VERSION = "20260711-v012"
+STATIC_ASSET_VERSION = "20260711-v013-live-history"
 SHUTDOWN_TOKEN = secrets.token_urlsafe(32)
 UPDATE_MANAGER = UpdateManager(UPDATE_DIR)
 BALANCE_CACHE_SECONDS = 60
@@ -458,6 +458,77 @@ def active_project_tasks(limit: int = 1000) -> list[dict]:
     return list_tasks(limit=limit, **active_project_task_filter())
 
 
+GENERATION_ESTIMATE_DEFAULT_SECONDS = {
+    "seedance-2.0-mini": 90,
+    "seedance-2.0-fast": 120,
+    "seedance-2.0": 180,
+}
+
+
+def generation_progress_for_task(task: dict, project_tasks: list[dict]) -> dict | None:
+    status = str(task.get("status") or "").lower()
+    if status not in {"queued", "processing"}:
+        return None
+
+    params = task.get("params") or {}
+    model = task.get("model") or params.get("model")
+    duration = params.get("duration")
+    resolution = params.get("resolution")
+    matching_samples = []
+    model_samples = []
+
+    for sample in project_tasks:
+        if sample.get("status") != "completed":
+            continue
+        elapsed = sample.get("elapsed_total_seconds")
+        if not isinstance(elapsed, (int, float)) or not 10 <= float(elapsed) <= 7200:
+            continue
+        sample_params = sample.get("params") or {}
+        sample_model = sample.get("model") or sample_params.get("model")
+        if sample_model != model:
+            continue
+        model_samples.append(float(elapsed))
+        if sample_params.get("duration") == duration and sample_params.get("resolution") == resolution:
+            matching_samples.append(float(elapsed))
+
+    samples = matching_samples or model_samples
+    if samples:
+        recent_samples = samples[:20]
+        estimated_total = max(30, round(sum(recent_samples) / len(recent_samples)))
+        estimate_source = "history"
+    else:
+        estimated_total = GENERATION_ESTIMATE_DEFAULT_SECONDS.get(str(model), 150)
+        estimate_source = "default"
+
+    if status == "queued":
+        return {
+            "estimated_progress_percent": 0,
+            "estimated_total_seconds": estimated_total,
+            "estimated_seconds_remaining": estimated_total,
+            "estimate_source": estimate_source,
+        }
+
+    started_at = task.get("started_at") or task.get("updated_at") or task.get("created_at")
+    elapsed_seconds = 0
+    if started_at:
+        try:
+            parsed = datetime.fromisoformat(str(started_at).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            elapsed_seconds = max(0, round((datetime.now(timezone.utc) - parsed).total_seconds()))
+        except (TypeError, ValueError):
+            elapsed_seconds = 0
+
+    progress = min(95, max(4, round(5 + (elapsed_seconds / max(estimated_total, 1)) * 85)))
+    return {
+        "estimated_progress_percent": progress,
+        "estimated_total_seconds": estimated_total,
+        "estimated_seconds_remaining": max(0, estimated_total - elapsed_seconds),
+        "estimate_overdue": elapsed_seconds >= estimated_total,
+        "estimate_source": estimate_source,
+    }
+
+
 def queue_loop_state_snapshot() -> dict:
     with _queue_loop_state_lock:
         return dict(_queue_loop_state)
@@ -749,6 +820,7 @@ def queue_tasks_for_view():
         task["cost_amount_usd"] = cost_amount_from_info(cost_info)
         task["can_edit_in_queue"] = task.get("status") == "queued"
         task["can_remove_from_queue"] = task.get("status") == "queued" and not task.get("request_id") and not task.get("output_path")
+        task["generation_progress"] = generation_progress_for_task(task, all_tasks)
         task.update(last_frame_view_for_task(task))
 
     tasks = sorted(all_tasks, key=lambda item: int(item.get("id") or 0), reverse=True)[:80]
@@ -998,11 +1070,13 @@ def single_generation_history_from_legacy_runs(seen_run_dirs: set[str], limit: i
 def single_generation_history_for_view(limit: int = 40) -> list[dict]:
     items = []
     seen_run_dirs = set()
+    project_tasks = active_project_tasks(limit=1000)
 
-    for task in active_project_tasks(limit=1000):
+    for task in project_tasks:
         item = single_generation_history_item_from_task(task)
         if not item:
             continue
+        item["generation_progress"] = generation_progress_for_task(task, project_tasks)
         if item.get("run_dir"):
             try:
                 seen_run_dirs.add(str(Path(item["run_dir"]).resolve()))
@@ -3006,7 +3080,7 @@ def launch_update_installer(request: Request, token: str = Form("")):
 def shutdown_server(request: Request, token: str = Form("")):
     try:
         validate_local_token(request, token)
-        threading.Timer(0.5, lambda: os._exit(0)).start()
+        threading.Timer(1.0, lambda: os._exit(0)).start()
         return {"ok": True, "message": "Takeflow server is shutting down."}
     except Exception as exc:
         return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=403)

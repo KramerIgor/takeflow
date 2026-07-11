@@ -15,16 +15,13 @@ def main() -> int:
     combined = html + "\n" + app_js
 
     required = [
-        'localStorage.getItem("seedance_gui_active_tab_v1")',
-        'new Set(["queue-workflow"])',
-        "if (!refreshTabs.has(activeTab))",
-        "window.location.reload()",
-        'window.location.replace("/")',
+        'window.seedanceRefreshHistoryRail("single"',
+        'window.seedanceRefreshHistoryRail("queue"',
         "autoRefreshEnabled",
         "refreshIntervalMs",
         '<script type="module" src="/static/app.js?v={{ static_asset_version }}"></script>',
         'event.target.closest("[data-refresh-history]")',
-        'const historyKind = refreshButton.dataset.refreshHistory || "single"',
+        'refreshButton.dataset.refreshHistory || "single"',
         'const selector = \'[data-history-rail-content="\' + historyKind + \'"]\'',
         "document.querySelector(selector)",
         'railContent.closest(".history-rail-panel")',
@@ -38,7 +35,7 @@ def main() -> int:
         print("missing_refresh_guard_parts=" + repr(missing))
         return 1
 
-    forbidden = ['new Set(["single-history", "queue-workflow"])']
+    forbidden = ["window.location.reload()", 'window.location.replace("/")']
     present_forbidden = [item for item in forbidden if item in combined]
     if present_forbidden:
         print("forbidden_refresh_guard_parts=" + repr(present_forbidden))

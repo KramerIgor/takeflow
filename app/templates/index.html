@@ -218,6 +218,33 @@
         <div class="history-video-box">
           {% if item.output_preview_url %}
             <video src="{{ item.output_preview_url }}" controls preload="metadata"></video>
+          {% elif item.generation_progress %}
+            {% set progress = item.generation_progress %}
+            <div
+              class="history-generation-progress"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="{{ progress.estimated_progress_percent }}"
+              style="--history-progress: {{ progress.estimated_progress_percent }}"
+            >
+              <div class="history-progress-ring" aria-hidden="true">
+                <span>{{ progress.estimated_progress_percent }}%</span>
+              </div>
+              <div class="history-progress-copy">
+                {% if item.status == "queued" %}
+                  <strong data-i18n="waiting_to_start">Waiting to start</strong>
+                  <span><span data-i18n="estimated_time">Estimated time</span>: ~{{ progress.estimated_total_seconds }} <span data-i18n="seconds_short">sec</span></span>
+                {% else %}
+                  <strong data-i18n="estimated_progress">Estimated progress</strong>
+                  {% if progress.estimate_overdue %}
+                    <span data-i18n="taking_longer_than_estimate">Taking longer than estimated</span>
+                  {% else %}
+                    <span>~{{ progress.estimated_seconds_remaining }} <span data-i18n="seconds_remaining">sec remaining</span></span>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
           {% else %}
             <div class="history-video-placeholder" data-i18n="no_video_preview">No video preview</div>
           {% endif %}
@@ -662,14 +689,14 @@
         </div>
 
       <aside class="single-history-rail" aria-label="Single Generation history">
-      <section class="panel single-history-panel history-rail-panel">
+      <section class="panel single-history-panel history-rail-panel" data-history-auto-refresh="{{ 'true' if has_processing_single_generation else 'false' }}">
         <div class="section-title-row history-rail-title">
           <h2 data-i18n="history_title">History</h2>
           <button type="button" class="secondary-button refresh-history-button" data-refresh-history="single" data-i18n="refresh_history">Refresh</button>
         </div>
         <p class="muted" data-i18n="history_hint">Single Generation runs appear here, including processing and failed runs.</p>
         {% if has_processing_single_generation %}
-          <div class="notice compact-notice" data-i18n="processing_notice">A generation is processing. Use Refresh to update status without clearing the form.</div>
+          <div class="notice compact-notice" data-i18n="processing_notice">Generation is in progress. History updates automatically.</div>
         {% endif %}
 
         <div class="single-history-rail-content history-rail-content" data-history-rail-content="single">
@@ -1014,7 +1041,7 @@
         </div>
 
         <aside class="single-history-rail queue-history-rail" aria-label="Queue history">
-          <section class="panel single-history-panel history-rail-panel">
+          <section class="panel single-history-panel history-rail-panel" data-history-auto-refresh="{{ 'true' if has_active_queue_work else 'false' }}">
             <div class="section-title-row history-rail-title">
               <h2 data-i18n="queue_history">Queue / History</h2>
               <button type="button" class="secondary-button refresh-history-button" data-refresh-history="queue" data-i18n="refresh_history">Refresh</button>
@@ -1069,6 +1096,7 @@
     window.seedanceConfig = {
       autoRefreshEnabled: {{ (has_processing_single_generation or has_active_queue_work) | tojson }},
       refreshIntervalMs: {{ (refresh_seconds * 1000) | tojson }},
+      historyRefreshIntervalMs: 5000,
       modelCapabilities: {{ model_capabilities | tojson }},
       initialTab: {{ active_tab | tojson }},
       shutdownToken: {{ shutdown_token | tojson }},

@@ -208,6 +208,33 @@ h3 {
   padding: 6px 10px;
 }
 
+.shutdown-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.shutdown-screen-panel {
+  display: grid;
+  width: min(420px, 100%);
+  justify-items: start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--surface);
+}
+
+.shutdown-screen-panel h1,
+.shutdown-screen-panel p {
+  margin: 0;
+}
+
+.shutdown-screen-panel p {
+  color: var(--muted);
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
@@ -1012,7 +1039,8 @@ button:disabled {
 }
 
 .history-video-box video,
-.history-video-placeholder {
+.history-video-placeholder,
+.history-generation-progress {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 1px solid var(--line);
@@ -1024,6 +1052,53 @@ button:disabled {
   display: grid;
   place-items: center;
   color: var(--muted);
+}
+
+.history-generation-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 14px;
+  color: var(--soft);
+}
+
+.history-progress-ring {
+  position: relative;
+  display: grid;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--history-progress) * 1%), #1b2636 0);
+}
+
+.history-progress-ring::before {
+  position: absolute;
+  inset: 7px;
+  border-radius: inherit;
+  background: #090d13;
+  content: "";
+}
+
+.history-progress-ring span {
+  position: relative;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.history-progress-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.history-progress-copy strong {
+  color: var(--text);
+  font-size: 12px;
 }
 
 .history-card-body {
@@ -1059,7 +1134,8 @@ button:disabled {
 }
 
 .single-history-rail .history-video-box video,
-.single-history-rail .history-video-placeholder {
+.single-history-rail .history-video-placeholder,
+.single-history-rail .history-generation-progress {
   aspect-ratio: 16 / 9;
 }
 

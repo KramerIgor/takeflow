@@ -81,7 +81,7 @@ Minimum safe pass:
 
 ~~~powershell
 & '.\.venv\Scripts\python.exe' -m compileall app scripts takeflow_launcher.py
-& '.\.venv\Scripts\python.exe' -u scripts\check_stage11_final_diagnostics.py
+& '.\.venv\Scripts\python.exe' -u scripts\check_takeflow_release.py
 & '.\.venv\Scripts\python.exe' -u scripts\check_release_readiness.py
 ~~~
 

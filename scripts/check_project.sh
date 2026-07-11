@@ -33,8 +33,8 @@ done
 echo
 
 echo "Output folder:"
-if [ -d "/mnt/c/AI_OUTPUT/Psailor_kun" ]; then
-  echo "OK: /mnt/c/AI_OUTPUT/Psailor_kun"
+if [ -d "/mnt/c/AI_OUTPUT/Example_project" ]; then
+  echo "OK: /mnt/c/AI_OUTPUT/Example_project"
 else
-  echo "MISSING: /mnt/c/AI_OUTPUT/Psailor_kun"
+  echo "MISSING: /mnt/c/AI_OUTPUT/Example_project"
 fi

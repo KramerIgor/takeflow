@@ -8,12 +8,15 @@ from fastapi.testclient import TestClient
 
 from app.db import create_task, delete_task, update_task_fields
 from app.main import app
+from app.projects import get_active_project_dir, get_active_project_name
 
 
 def main() -> int:
     print("=== GUI output path visibility check ===")
 
     params = {
+        "project_name": get_active_project_name(),
+        "project_dir": str(get_active_project_dir()),
         "model": "seedance-2.0-fast",
         "duration": 4,
         "resolution": "480p",
@@ -32,16 +35,16 @@ def main() -> int:
     update_task_fields(
         task_id,
         status="completed",
-        output_path="/mnt/c/AI_OUTPUT/Psailor_kun/fake_check/output.mp4",
-        run_dir="/mnt/c/AI_OUTPUT/Psailor_kun/fake_check",
+        output_path="/mnt/c/AI_OUTPUT/Example_project/fake_check/output.mp4",
+        run_dir="/mnt/c/AI_OUTPUT/Example_project/fake_check",
         elapsed_total_seconds=1,
     )
 
     client = TestClient(app)
     response = client.get("/")
 
-    contains_windows_output = "C:\\AI_OUTPUT\\Psailor_kun\\fake_check\\output.mp4" in response.text
-    contains_output_label = "Output video:" in response.text
+    contains_windows_output = "C:\\AI_OUTPUT\\Example_project\\fake_check\\output.mp4" in response.text
+    contains_output_label = "Output video:" in response.text or "Выходное видео:" in response.text
 
     print("index_status_code=", response.status_code, sep="")
     print("test_task_id=", task_id, sep="")

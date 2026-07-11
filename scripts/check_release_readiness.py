@@ -22,6 +22,19 @@ def expect(name: str, condition: bool) -> bool:
     return bool(condition)
 
 
+def public_source_text() -> str:
+    roots = ["app", "data/examples", "docs", "scripts", ".agents"]
+    suffixes = {".css", ".csv", ".html", ".js", ".json", ".md", ".ps1", ".py", ".sh", ".txt"}
+    parts: list[str] = []
+    for root in roots:
+        for path in (PROJECT_ROOT / root).rglob("*"):
+            if path.is_file() and path.suffix.lower() in suffixes:
+                parts.append(path.read_text(encoding="utf-8", errors="ignore"))
+    for name in ("AGENTS.md", "README.md", "README_RU.md", ".env.example"):
+        parts.append((PROJECT_ROOT / name).read_text(encoding="utf-8", errors="ignore"))
+    return "\n".join(parts)
+
+
 def main() -> int:
     print("=== Release readiness check ===")
 
@@ -38,6 +51,7 @@ def main() -> int:
     app_js = (PROJECT_ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
     template = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
     updates_js = (PROJECT_ROOT / "app" / "static" / "js" / "updates.js").read_text(encoding="utf-8")
+    public_sources = public_source_text().lower()
 
     with TestClient(app) as client:
         page = client.get("/")
@@ -71,6 +85,7 @@ def main() -> int:
         expect("update_manifest_exists", (PROJECT_ROOT / "update.json").exists()),
         expect("gitignore_excludes_secrets", ".env" in gitignore and ".venv/" in gitignore and ".runtime/" in gitignore),
         expect("gitignore_excludes_update_downloads", "data/updates/" in gitignore and "*.part" in gitignore),
+        expect("personal_project_identifier_absent", ("psai" + "lor") not in public_sources),
         expect("frontend_update_shutdown_modules", "updates.js" in app_js and "shutdown.js" in app_js),
         expect("readme_mentions_installer", "Windows Installer" in readme and "GitHub Releases" in readme),
         expect("readme_language_switch", "[Русский](README_RU.md)" in readme and "[English](README.md)" in readme_ru),

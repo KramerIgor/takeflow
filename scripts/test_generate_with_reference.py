@@ -66,7 +66,7 @@ def download_file(url: str, path: Path) -> None:
 def main() -> int:
     client = SegmindClient(timeout=180.0)
 
-    reference_path = Path("/mnt/c/AI_OUTPUT/Psailor_kun/api_tests/refs/reference_01.png")
+    reference_path = Path("/mnt/c/AI_OUTPUT/Example_project/api_tests/refs/reference_01.png")
 
     if not reference_path.exists():
         print(f"RESULT=REFERENCE_NOT_FOUND")

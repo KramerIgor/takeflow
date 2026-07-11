@@ -39,7 +39,7 @@ def launcher_log_dir() -> Path:
 def default_output_dir() -> Path:
     if IS_MACOS:
         return Path.home() / "Movies" / "Takeflow" / "Example_project"
-    return Path("/mnt/c/AI_OUTPUT/Psailor_kun")
+    return Path.home() / "Videos" / "Takeflow" / "Example_project"
 
 
 DATA_DIR = app_support_dir()

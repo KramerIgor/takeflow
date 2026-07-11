@@ -15,6 +15,7 @@ def main_test() -> int:
     print("=== Stage 7 repaired project GUI check ===")
 
     output_root = get_output_root()
+    active_project_name = main.project_context().get("active_project_name", "")
     test_project_name = "_stage7_ui_create_test"
     test_project_dir = output_root / test_project_name
 
@@ -40,7 +41,7 @@ def main_test() -> int:
     print("project_inbox_exists_after_create=", (test_project_dir / "results" / "_inbox").exists(), sep="")
 
     print("contains_active_project_label=", "Active project:" in index_after.text, sep="")
-    print("contains_psailor_kun=", "Psailor_kun" in index_after.text, sep="")
+    print("contains_active_project=", active_project_name in index_after.text, sep="")
     print("contains_output_root=", "C:\\AI_OUTPUT" in index_after.text or "/mnt/c/AI_OUTPUT" in index_after.text, sep="")
     print("contains_create_project_form=", "Create project folder" in index_after.text, sep="")
     print("contains_test_project_in_list=", test_project_name in index_after.text, sep="")
@@ -54,7 +55,7 @@ def main_test() -> int:
         and test_project_dir.exists()
         and (test_project_dir / "results" / "_inbox").exists()
         and "Active project:" in index_after.text
-        and "Psailor_kun" in index_after.text
+        and active_project_name in index_after.text
         and "Create project folder" in index_after.text
         and test_project_name in index_after.text
         and "was created in the output root" in create_response.text

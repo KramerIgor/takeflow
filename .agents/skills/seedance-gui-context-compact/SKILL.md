@@ -12,7 +12,7 @@ Create a compact handoff that protects project state and paid-generation boundar
 - WSL path: `/home/iokramer/seedance_gui`
 - GUI URL: `http://127.0.0.1:7860`
 - Output roots: `C:\AI_OUTPUT` and `/mnt/c/AI_OUTPUT`
-- Active result project: `/mnt/c/AI_OUTPUT/Psailor_kun`
+- Example result project: `/mnt/c/AI_OUTPUT/Example_project`
 - Stack: FastAPI + Uvicorn + Jinja2 + static CSS
 - Current scope: post-Stage-11 product UI cleanup; per-generation cost estimate implemented; top balance reads `https://api.segmind.com/v1/get-user-credits`
 - Paid generation and `.env` guardrails

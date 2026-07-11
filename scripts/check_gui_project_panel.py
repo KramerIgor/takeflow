@@ -7,6 +7,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.projects import get_active_project_name
 
 
 def main() -> int:
@@ -14,11 +15,12 @@ def main() -> int:
 
     client = TestClient(app)
     response = client.get("/")
+    active_project_name = get_active_project_name()
 
     print("index_status_code=", response.status_code, sep="")
     print("contains_project_panel_title=", ">Project<" in response.text or "Project</h2>" in response.text, sep="")
     print("contains_active_project_label=", "Active project:" in response.text, sep="")
-    print("contains_psailor_kun=", "Psailor_kun" in response.text, sep="")
+    print("contains_active_project=", active_project_name in response.text, sep="")
     print("contains_output_root=", "C:\\AI_OUTPUT" in response.text or "/mnt/c/AI_OUTPUT" in response.text, sep="")
     print("contains_stage7_hint=", "Project switching and project creation will be added in Stage 7" in response.text, sep="")
     print("new_paid_submit_started=False")
@@ -26,7 +28,7 @@ def main() -> int:
     ok = (
         response.status_code == 200
         and "Active project:" in response.text
-        and "Psailor_kun" in response.text
+        and active_project_name in response.text
         and ("C:\\AI_OUTPUT" in response.text or "/mnt/c/AI_OUTPUT" in response.text)
         and "Project switching and project creation will be added in Stage 7" in response.text
     )

@@ -8,7 +8,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.projects import get_output_root
+from app.projects import get_active_project_name, get_output_root
 
 
 def main() -> int:
@@ -16,6 +16,7 @@ def main() -> int:
 
     test_project_name = "_stage7_ui_create_test"
     output_root = get_output_root()
+    active_project_name = get_active_project_name()
     test_project_dir = output_root / test_project_name
 
     if test_project_dir.exists():
@@ -36,7 +37,7 @@ def main() -> int:
     print("project_inbox_exists_after_create=", (test_project_dir / "results" / "_inbox").exists(), sep="")
     print("contains_create_project_form=", "Create project folder" in index_after.text, sep="")
     print("contains_test_project_in_list=", test_project_name in index_after.text, sep="")
-    print("contains_active_project_still_psailor=", "Psailor_kun" in index_after.text, sep="")
+    print("contains_active_project=", active_project_name in index_after.text, sep="")
     print("new_paid_submit_started=False")
 
     ok = (
@@ -47,7 +48,7 @@ def main() -> int:
         and (test_project_dir / "results" / "_inbox").exists()
         and "Create project folder" in index_after.text
         and test_project_name in index_after.text
-        and "Psailor_kun" in index_after.text
+        and active_project_name in index_after.text
     )
 
     shutil.rmtree(test_project_dir, ignore_errors=True)

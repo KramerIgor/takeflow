@@ -90,9 +90,9 @@ Confirmed run:
 
     Task id: 25
     Request id: 1d22c000af50a8597ad64748bb87287c
-    Run dir: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001
-    Final video: /mnt/c/AI_OUTPUT/Psailor_kun/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000001.mp4
-    Last frame: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001/last_frame.png
+    Run dir: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001
+    Final video: /mnt/c/AI_OUTPUT/Example_project/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000001.mp4
+    Last frame: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000001/last_frame.png
     API field: video.last_frame_url
 
 Confirmed continuation run:
@@ -100,9 +100,9 @@ Confirmed continuation run:
     Parent task id: 25
     Child continuation task id: 26
     Child status: completed
-    Child output: /mnt/c/AI_OUTPUT/Psailor_kun/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000002.mp4
-    Child run dir: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002
-    Child last frame: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002/last_frame.png
+    Child output: /mnt/c/AI_OUTPUT/Example_project/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000002.mp4
+    Child run dir: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002
+    Child last frame: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002/last_frame.png
 
 Stable Stage 8 tab UI backup:
 

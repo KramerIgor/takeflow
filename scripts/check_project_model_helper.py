@@ -21,7 +21,7 @@ def main() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="seedance_projects_test_"))
 
     try:
-        p1 = create_project("Psailor kun", root=tmp)
+        p1 = create_project("Example project", root=tmp)
         p2 = create_project("Another<Project?>", root=tmp)
 
         projects = list_projects(root=tmp)
@@ -31,7 +31,7 @@ def main() -> int:
         print("current_active_project=", get_active_project_name(), sep="")
         print("tmp_project_1=", p1, sep="")
         print("tmp_project_2=", p2, sep="")
-        print("sanitized_psailor=", sanitize_project_name("Psailor kun"), sep="")
+        print("sanitized_example=", sanitize_project_name("Example project"), sep="")
         print("sanitized_another=", sanitize_project_name("Another<Project?>"), sep="")
         print("projects_count=", len(projects), sep="")
         print("project_names=", ",".join(names), sep="")
@@ -40,12 +40,12 @@ def main() -> int:
         print("new_paid_submit_started=False")
 
         ok = (
-            sanitize_project_name("Psailor kun") == "Psailor_kun"
+            sanitize_project_name("Example project") == "Example_project"
             and "Another_Project" in sanitize_project_name("Another<Project?>")
             and len(projects) == 2
             and (p1 / "results" / "_inbox").exists()
             and (p2 / "results" / "_inbox").exists()
-            and get_active_project_name() == "Psailor_kun"
+            and bool(get_active_project_name())
         )
 
         if ok:

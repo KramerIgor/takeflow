@@ -69,7 +69,7 @@ def main() -> int:
         print(f"{name}_status_last_frame_found={status['last_frame_found']}")
 
     old_result_candidates_ok = True
-    old_result_path = Path("/mnt/c/AI_OUTPUT/Psailor_kun/api_tests/text_only_20260620_090301/result_response.json")
+    old_result_path = Path("/mnt/c/AI_OUTPUT/Example_project/api_tests/text_only_20260620_090301/result_response.json")
 
     if old_result_path.exists():
         old_payload = json.loads(old_result_path.read_text(encoding="utf-8"))

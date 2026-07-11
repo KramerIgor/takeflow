@@ -6,7 +6,7 @@
 - GUI URL: `http://127.0.0.1:7860`
 - Windows output root: `C:\AI_OUTPUT`
 - WSL output root: `/mnt/c/AI_OUTPUT`
-- Active result project: `/mnt/c/AI_OUTPUT/Psailor_kun`
+- Example result project: `/mnt/c/AI_OUTPUT/Example_project`
 
 ## Stack
 

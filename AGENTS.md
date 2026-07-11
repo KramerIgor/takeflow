@@ -189,9 +189,9 @@ Real paid continuation test passed:
     Parent task id: 25
     Child continuation task id: 26
     Child status: completed
-    Child output: /mnt/c/AI_OUTPUT/Psailor_kun/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000002.mp4
-    Child run dir: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002
-    Child last frame: /mnt/c/AI_OUTPUT/Psailor_kun/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002/last_frame.png
+    Child output: /mnt/c/AI_OUTPUT/Example_project/videos/Episode_00_Scene_998_LastFrame_API_Test_take_000002.mp4
+    Child run dir: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002
+    Child last frame: /mnt/c/AI_OUTPUT/Example_project/runs/Episode_00_Scene_998_LastFrame_API_Test_take_000002/last_frame.png
 
 Confirmed backend behavior: parent last_frame.png is uploaded through existing upload_asset and appended to child reference_images. first_frame_url is not the default workflow.
 

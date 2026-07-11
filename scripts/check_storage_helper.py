@@ -26,12 +26,12 @@ def main() -> int:
 
         print("tmp_base=", base, sep="")
         print("next_take_number=", next_number, sep="")
-        print("windows_path_c=", to_windows_path("/mnt/c/AI_OUTPUT/Psailor_kun/results/_inbox/take_000001"), sep="")
+        print("windows_path_c=", to_windows_path("/mnt/c/AI_OUTPUT/Example_project/results/_inbox/take_000001"), sep="")
         print("windows_path_d=", to_windows_path("/mnt/d/AI_OUTPUT/test"), sep="")
 
         if (
             next_number == 3
-            and to_windows_path("/mnt/c/AI_OUTPUT/Psailor_kun/results/_inbox/take_000001").startswith("C:\\")
+            and to_windows_path("/mnt/c/AI_OUTPUT/Example_project/results/_inbox/take_000001").startswith("C:\\")
             and to_windows_path("/mnt/d/AI_OUTPUT/test").startswith("D:\\")
         ):
             print("RESULT=STORAGE_HELPER_OK")

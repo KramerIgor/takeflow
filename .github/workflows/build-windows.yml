@@ -40,18 +40,19 @@ jobs:
       - name: Install build dependencies
         shell: pwsh
         run: |
-          python -m pip install -r requirements.txt pyinstaller
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements.txt pyinstaller
           choco install innosetup --yes --no-progress
 
       - name: Validate release source
         shell: pwsh
         run: |
-          $expectedTag = python -c "from app.version import APP_RELEASE_TAG; print(APP_RELEASE_TAG)"
+          $expectedTag = .\.venv\Scripts\python.exe -c "from app.version import APP_RELEASE_TAG; print(APP_RELEASE_TAG)"
           if ($expectedTag.Trim() -ne "${{ inputs.release_tag }}") {
             throw "Requested tag does not match app.version: $expectedTag"
           }
-          python -m compileall app scripts takeflow_launcher.py
-          python -u scripts/check_release_readiness.py
+          .\.venv\Scripts\python.exe -m compileall app scripts takeflow_launcher.py
+          .\.venv\Scripts\python.exe -u scripts/check_release_readiness.py
 
       - name: Build installer
         shell: pwsh

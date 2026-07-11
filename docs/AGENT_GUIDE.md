@@ -137,6 +137,8 @@ Before publishing:
 8. Create a GitHub Release and attach the matching installer.
 9. Verify the public asset URL and checksum.
 
+The maintained `.github/workflows/build-windows.yml` workflow performs the Windows build, packaged-app health check, secret exclusion check, checksum generation and optional GitHub pre-release upload from an existing tag.
+
 End-user updates use the GitHub update.json manifest. Never implement updates with git pull.
 
 ### macOS

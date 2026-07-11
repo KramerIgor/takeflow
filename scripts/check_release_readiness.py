@@ -78,6 +78,7 @@ def main() -> int:
         expect("macos_pyinstaller_spec_exists", (PROJECT_ROOT / "packaging" / "pyinstaller_takeflow_macos.spec").exists()),
         expect("macos_build_script_exists", (PROJECT_ROOT / "scripts" / "build_macos_dmg.sh").exists()),
         expect("macos_workflow_exists", (PROJECT_ROOT / ".github" / "workflows" / "build-macos.yml").exists()),
+        expect("windows_workflow_exists", (PROJECT_ROOT / ".github" / "workflows" / "build-windows.yml").exists()),
         expect("inno_script_exists", "[Setup]" in inno and "DefaultDirName={localappdata}\\Takeflow" in inno),
         expect("installer_creates_shortcuts", "{autodesktop}" in inno and "{group}\\{#MyAppName}" in inno),
         expect("inno_does_not_package_env", ".env" not in inno),

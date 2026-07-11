@@ -18,7 +18,7 @@
 
 ## Установка
 
-1. Откройте [релиз Takeflow 0.1.3 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta).
+1. Откройте [релиз Takeflow 0.1.4 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.4-beta).
 2. Скачайте TakeflowSetup-*.exe.
 3. Запустите установщик.
 4. Выберите папку установки.

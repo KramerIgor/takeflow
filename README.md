@@ -6,11 +6,11 @@
 
 Takeflow is a local Windows and macOS desktop interface for organizing projects and generating video through the Segmind Seedance API. The application opens in the browser and keeps project files on the user's computer.
 
-Current release: **0.1.3 beta** (v0.1.3-beta).
+Current release: **0.1.4 beta** (v0.1.4-beta).
 
 ## Download for Windows
 
-Download the latest installer from [Takeflow 0.1.3 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta):
+Download the latest installer from [Takeflow 0.1.4 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.4-beta):
 
 1. Download TakeflowSetup-*.exe.
 2. Run the installer.
@@ -102,7 +102,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File '.\scripts\build_windows_ins
 Output:
 
 ~~~text
-dist\installer\TakeflowSetup-0.1.3beta.exe
+dist\installer\TakeflowSetup-0.1.4beta.exe
 ~~~
 
 The build script also updates update.json with the release URLs and SHA-256 checksum.

@@ -379,9 +379,7 @@ first_frame_url is parked as a possible optional future mode only.
 - Quit now handles backend errors, attempts to close the browser tab, and falls back to a finite safe-to-close screen instead of staying on “Shutting down”.
 - Product-level diagnostics are `scripts/check_takeflow_release.py` and `scripts/check_ui_quality.py`; old Stage 11 script names remain compatibility wrappers only.
 
-## Unreleased local backlog pass — 2026-07-11
-
-This pass is intentionally local and has not been published or released yet.
+## Takeflow 0.1.4 beta — 2026-07-11
 
 - Model selectors use the short labels `Seedance 2.0 Pro`, `Seedance 2.0 Fast` and `Seedance 2.0 Mini`; internal API ids are unchanged.
 - Projects/API settings contain only API key and API base. Saving applies both to new clients immediately and invalidates the balance cache; no GUI restart is required.

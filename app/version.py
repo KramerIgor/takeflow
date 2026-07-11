@@ -1,3 +1,3 @@
-APP_VERSION = "0.1.3beta"
-APP_VERSION_DISPLAY = "0.1.3 beta"
-APP_RELEASE_TAG = "v0.1.3-beta"
+APP_VERSION = "0.1.4beta"
+APP_VERSION_DISPLAY = "0.1.4 beta"
+APP_RELEASE_TAG = "v0.1.4-beta"

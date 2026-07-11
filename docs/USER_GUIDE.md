@@ -18,7 +18,7 @@ The installer is approximately 20 MB. The installed application is approximately
 
 ## Install
 
-1. Open the [Takeflow 0.1.3 beta release](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta).
+1. Open the [Takeflow 0.1.4 beta release](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.4-beta).
 2. Download TakeflowSetup-*.exe.
 3. Run the downloaded installer.
 4. Choose the installation folder.

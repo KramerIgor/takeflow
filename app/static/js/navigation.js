@@ -22,6 +22,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         localStorage.setItem(tabStorageKey, targetName);
+        document.dispatchEvent(new CustomEvent("seedance:tab-changed", {
+          detail: { tabName: targetName }
+        }));
       }
 
       window.seedanceActivateTab = activateTab;

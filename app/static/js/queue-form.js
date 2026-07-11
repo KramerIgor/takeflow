@@ -1,12 +1,13 @@
 import {
   createReferencePreviewNode,
   insertReferenceToken,
+  referenceFilesFromClipboard,
   referenceLimitForForm,
   renderPromptEditorFromSource,
   renderReferenceTokenMenu,
   shouldShowReferenceTokenMenu,
   syncPromptSourceFromEditor
-} from "./reference-ui.js";
+} from "./reference-ui.js?v=20260711-v014-frontend-cachefix-5";
 
 // Queue references and edit-in-queue behavior
 document.addEventListener("DOMContentLoaded", function () {
@@ -235,7 +236,11 @@ document.addEventListener("DOMContentLoaded", function () {
           form.elements.resolution.value = item.resolution || "480p";
           form.elements.aspect_ratio.value = item.aspect_ratio || "16:9";
         }
-        form.elements.seed.value = item.seed ?? -1;
+        if (window.seedanceApplySeedState) {
+          window.seedanceApplySeedState(form, item);
+        } else {
+          form.elements.seed.value = item.seed ?? -1;
+        }
         form.elements.generate_audio.checked = Boolean(item.generate_audio);
         form.elements.return_last_frame.checked = Boolean(item.return_last_frame);
         attachedFiles.splice(0, attachedFiles.length);
@@ -317,6 +322,15 @@ document.addEventListener("DOMContentLoaded", function () {
       promptEditor.addEventListener("input", function () {
         syncPromptSourceFromEditor(promptEditor, promptField);
         maybeShowTokenMenu();
+      });
+      promptEditor.addEventListener("paste", function (event) {
+        const files = referenceFilesFromClipboard(event);
+        if (!files.length) {
+          return;
+        }
+        event.preventDefault();
+        addFiles(files);
+        hideTokenMenu();
       });
       promptEditor.addEventListener("keyup", maybeShowTokenMenu);
       promptEditor.addEventListener("click", hideTokenMenu);

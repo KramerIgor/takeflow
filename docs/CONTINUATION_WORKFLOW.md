@@ -118,7 +118,6 @@ Current status:
 
 ## Parked items
 
-- Parallel queues.
 - Cost limits.
 
 ## Related Stage 9 status

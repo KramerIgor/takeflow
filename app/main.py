@@ -19,10 +19,11 @@ from fastapi.responses import HTMLResponse, FileResponse, RedirectResponse, JSON
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.db import create_task, delete_task, get_task, init_db, list_tasks, update_task_fields, update_task_payload
+from app.db import create_task, delete_task, get_task, init_db, list_tasks, task_matches_project, update_task_fields, update_task_params, update_task_payload
 from app.queue_worker import process_next_queued_task_real, process_queue_loop, process_queued_task_real_by_id, _save_api_last_frame_if_present
-from app.settings import ENV_PATH, OUTPUT_DIR, SEGMIND_API_KEY, SEGMIND_API_BASE, SEGMIND_MODEL, normalize_runtime_path
-from app.segmind_client import SegmindClient
+from app.settings import ENV_PATH, OUTPUT_DIR, normalize_runtime_path
+from app import settings as app_settings
+from app.segmind_client import SegmindClient, extract_seed_from_response
 from app.costing import (
     TEXT_IMAGE_RATES_USD_PER_SECOND,
     VIDEO_TYPICAL_RATES_USD_PER_SECOND,
@@ -48,6 +49,15 @@ app = FastAPI(title="Takeflow", version=APP_VERSION)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+
+@app.middleware("http")
+async def prevent_stale_frontend_assets(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path.lower()
+    if path.startswith("/static/") and path.endswith((".js", ".css")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 init_db()
 
 
@@ -59,27 +69,24 @@ DEFAULT_REFERENCE_FILE_LIMIT = 9
 MODEL_CHOICES = [
     {
         "id": "seedance-2.0",
-        "label": "Seedance 2.0",
-        "note": "Base model / 4K",
+        "label": "Seedance 2.0 Pro",
         "durations": STANDARD_DURATIONS,
         "resolutions": ["480p", "720p", "1080p", "4k"],
         "aspect_ratios": ASPECT_RATIOS,
         "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
     },
     {
-        "id": "seedance-2.0-mini",
-        "label": "Seedance 2.0 Mini",
-        "note": "Draft tier / 480p-720p",
-        "durations": MINI_DURATIONS,
+        "id": "seedance-2.0-fast",
+        "label": "Seedance 2.0 Fast",
+        "durations": STANDARD_DURATIONS,
         "resolutions": ["480p", "720p"],
         "aspect_ratios": ASPECT_RATIOS,
         "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
     },
     {
-        "id": "seedance-2.0-fast",
-        "label": "Seedance 2.0 Fast",
-        "note": "Legacy faster / cheaper variant",
-        "durations": STANDARD_DURATIONS,
+        "id": "seedance-2.0-mini",
+        "label": "Seedance 2.0 Mini",
+        "durations": MINI_DURATIONS,
         "resolutions": ["480p", "720p"],
         "aspect_ratios": ASPECT_RATIOS,
         "reference_file_limit": DEFAULT_REFERENCE_FILE_LIMIT,
@@ -114,7 +121,7 @@ SINGLE_GENERATION_MODES = {"single_generation_paid", "single_generation_regenera
 APP_TITLE = "Takeflow"
 APP_SUBTITLE = "Local AI-video studio"
 APP_CREATOR = "Igor Olegovich Kramer / IOKRAMER"
-STATIC_ASSET_VERSION = "20260711-v013-live-history"
+STATIC_ASSET_VERSION = "20260711-v014-frontend-cachefix-5"
 SHUTDOWN_TOKEN = secrets.token_urlsafe(32)
 UPDATE_MANAGER = UpdateManager(UPDATE_DIR)
 BALANCE_CACHE_SECONDS = 60
@@ -138,7 +145,7 @@ _queue_loop_state: dict[str, object] = {
 
 
 def env_key_is_set() -> bool:
-    return bool(os.getenv("SEGMIND_API_KEY", "") or SEGMIND_API_KEY)
+    return bool(app_settings.get_segmind_api_key())
 
 
 def update_env_values(values: dict[str, str]) -> None:
@@ -275,6 +282,15 @@ def format_queue_cost_total(amount: float | None) -> str | None:
     if amount is None:
         return None
     return f"~${amount:.4f} estimated"
+
+
+def cost_display_parts(label: str | None) -> dict:
+    value = str(label or "")
+    estimated = value.endswith(" estimated")
+    return {
+        "cost_value_label": value.removesuffix(" estimated") if estimated else value,
+        "cost_is_estimated": estimated,
+    }
 
 
 def format_credit_amount(value: object) -> str | None:
@@ -677,6 +693,7 @@ def queue_batch_summary_for_tasks(tasks: list[dict]) -> dict:
         "current_position": current_position,
         "progress_label": progress_label,
         "total_cost_label": format_queue_cost_total(total_cost if has_cost else None),
+        **cost_display_parts(format_queue_cost_total(total_cost if has_cost else None)),
         "has_active_work": processing_count > 0 or queued_count > 0,
         "has_paused_work": paused_count > 0,
     }
@@ -709,6 +726,64 @@ def queue_group_key_for_task(task: dict) -> str:
 def queue_display_name_for_task(task: dict) -> str:
     params = task.get("params") or {}
     return params.get("name") or params.get("single_generation_name") or params.get("scene_name") or f"Queue item #{task.get('id')}"
+
+
+def seed_metadata(seed: int) -> dict:
+    requested_seed = int(seed)
+    is_random = requested_seed < 0
+    return {
+        "seed": -1 if is_random else requested_seed,
+        "requested_seed": -1 if is_random else requested_seed,
+        "random_seed": is_random,
+        "actual_seed": None if is_random else requested_seed,
+    }
+
+
+def seed_view(params: dict | None) -> dict:
+    params = params or {}
+    requested = params.get("requested_seed", params.get("seed", -1))
+    try:
+        requested_number = int(requested)
+    except (TypeError, ValueError):
+        requested_number = -1
+    is_random = bool(params.get("random_seed", requested_number < 0))
+    actual = params.get("actual_seed")
+    if actual is None and not is_random:
+        actual = requested_number
+    return {
+        "seed": params.get("seed", requested_number),
+        "requested_seed": requested_number,
+        "random_seed": is_random,
+        "actual_seed": actual,
+        "seed_display": actual if actual is not None else ("random" if is_random else requested),
+    }
+
+
+def error_view(error: str | None) -> dict:
+    raw = str(error or "").strip()
+    if not raw:
+        return {"error": None, "error_display_key": None, "error_display": None}
+
+    lowered = raw.lower()
+    known_errors = (
+        (("reference upload timed out", "upload timed out before segmind submit"), "generation_error_reference_upload", "The reference could not be uploaded. Try a smaller file or check the connection."),
+        (("unexpected_eof", "connecterror", "connection error", "ssl:", "remote host forcibly closed"), "generation_error_connection", "The connection was interrupted before Takeflow received confirmation. Check the Segmind dashboard before trying again."),
+        (("timeout", "timed out", "readtimeout", "writetimeout"), "generation_error_timeout", "Segmind did not respond in time. Check the connection and try again."),
+        (("unauthorized", "invalid api key", "authentication", "status 401", "status_code=401", "status 403"), "generation_error_auth", "Segmind rejected the API key. Check it in Projects settings."),
+        (("insufficient", "balance", "payment required", "status 402", "status_code=402"), "generation_error_balance", "There is not enough Segmind balance for this generation."),
+        (("rate limit", "too many requests", "capacity", "status 429", "status_code=429"), "generation_error_capacity", "Segmind is busy or the request limit was reached. Try again later or reduce parallel jobs."),
+        (("validation", "invalid parameter", "bad request", "status 400", "status_code=400"), "generation_error_parameters", "Segmind rejected the generation parameters. Check the model settings and references."),
+        (("download", "output url", "result file"), "generation_error_download", "The generation result could not be downloaded. Use result recovery if a request ID is available."),
+    )
+    for patterns, key, message in known_errors:
+        if any(pattern in lowered for pattern in patterns):
+            return {"error": raw, "error_display_key": key, "error_display": message}
+
+    return {
+        "error": raw,
+        "error_display_key": "generation_error_generic",
+        "error_display": "The generation failed. Open Debug / files for technical details.",
+    }
 
 
 
@@ -817,10 +892,14 @@ def queue_tasks_for_view():
         task["refs_view"] = refs_view
         cost_info = cost_info_for_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs_view)
         task["cost_label"] = cost_label(cost_info)
+        task.update(cost_display_parts(task["cost_label"]))
         task["cost_amount_usd"] = cost_amount_from_info(cost_info)
-        task["can_edit_in_queue"] = task.get("status") == "queued"
-        task["can_remove_from_queue"] = task.get("status") == "queued" and not task.get("request_id") and not task.get("output_path")
+        editable_queue_statuses = {"queued", "paused", "draft", "pending"}
+        task["can_edit_in_queue"] = task.get("status") in editable_queue_statuses
+        task["can_remove_from_queue"] = task.get("status") in editable_queue_statuses and not task.get("request_id") and not task.get("output_path")
         task["generation_progress"] = generation_progress_for_task(task, all_tasks)
+        task.update(error_view(task.get("error")))
+        task.update(seed_view(params))
         task.update(last_frame_view_for_task(task))
 
     tasks = sorted(all_tasks, key=lambda item: int(item.get("id") or 0), reverse=True)[:80]
@@ -949,6 +1028,8 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
             processing_note = "Preparing Segmind submit. It may not appear in Segmind yet."
             processing_note_key = "segmind_preparing_submit"
 
+    seed_info = seed_view(params)
+    history_cost_label = cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs)
     return {
         "source": "db",
         "task_id": task.get("id"),
@@ -963,7 +1044,7 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
         "duration": params.get("duration"),
         "resolution": params.get("resolution"),
         "aspect_ratio": params.get("aspect_ratio"),
-        "seed": params.get("seed"),
+        **seed_info,
         "generate_audio": params.get("generate_audio"),
         "return_last_frame": params.get("return_last_frame"),
         "refs": refs,
@@ -975,8 +1056,9 @@ def single_generation_history_item_from_task(task: dict) -> dict | None:
         "run_dir_windows_path": to_windows_path(task.get("run_dir")),
         "created_at": task.get("created_at"),
         "completed_at": task.get("completed_at"),
-        "error": task.get("error"),
-        "cost_label": cost_label_from_generation(summary, model=task.get("model") or params.get("model"), params=params, refs=refs),
+        **error_view(task.get("error")),
+        "cost_label": history_cost_label,
+        **cost_display_parts(history_cost_label),
     }
 
 
@@ -1048,7 +1130,7 @@ def single_generation_history_from_legacy_runs(seen_run_dirs: set[str], limit: i
                 "duration": params.get("duration"),
                 "resolution": params.get("resolution"),
                 "aspect_ratio": params.get("aspect_ratio"),
-                "seed": params.get("seed"),
+                **seed_view(params),
                 "generate_audio": params.get("generate_audio"),
                 "return_last_frame": params.get("return_last_frame"),
                 "refs": [ref_view_for_item(item) for item in refs],
@@ -1060,7 +1142,9 @@ def single_generation_history_from_legacy_runs(seen_run_dirs: set[str], limit: i
                 "run_dir_windows_path": to_windows_path(str(run_dir)),
                 "created_at": datetime.fromtimestamp(run_dir.stat().st_mtime).isoformat(timespec="seconds"),
                 "completed_at": None,
-                "error": error,
+                **error_view(error),
+                "cost_label": cost_label,
+                **cost_display_parts(cost_label),
             }
         )
 
@@ -1136,9 +1220,9 @@ def base_context(
         "update_state": UPDATE_MANAGER.get_update_state(),
         "update_download_state": UPDATE_MANAGER.get_download_state(),
         "api_key_set": env_key_is_set(),
-        "api_base": SEGMIND_API_BASE,
+        "api_base": app_settings.get_segmind_api_base(),
         **segmind_balance_context(),
-        "default_model": SEGMIND_MODEL,
+        "default_model": "seedance-2.0",
         "model_choices": MODEL_CHOICES,
         "model_capabilities": {
             item["id"]: {
@@ -1351,7 +1435,7 @@ def build_params(
         "resolution": resolution,
         "aspect_ratio": aspect_ratio,
         "generate_audio": bool(generate_audio),
-        "seed": seed,
+        **seed_metadata(seed),
         "return_last_frame": bool(return_last_frame),
         "skip_moderation": False,
         "mode": mode,
@@ -1419,7 +1503,7 @@ def create_continuation_chain_tasks(
             "resolution": resolution,
             "aspect_ratio": aspect_ratio,
             "generate_audio": bool(generate_audio),
-            "seed": seed,
+            **seed_metadata(seed),
             "return_last_frame": True,
             "skip_moderation": False,
             "mode": "continuation_chain_queued_no_generation_yet",
@@ -1716,7 +1800,7 @@ def create_batch_import_tasks(
             "resolution": row["resolution"],
             "aspect_ratio": row["aspect_ratio"],
             "generate_audio": row["generate_audio"],
-            "seed": row["seed"],
+            **seed_metadata(row["seed"]),
             "return_last_frame": True,
             "skip_moderation": False,
             "mode": "batch_import_queued_no_generation_yet",
@@ -1900,28 +1984,28 @@ def update_api_settings_endpoint(
     request: Request,
     segmind_api_key: str = Form(""),
     segmind_api_base: str = Form(""),
-    default_model: str = Form("seedance-2.0"),
 ):
-    updates = {}
+    message_key = None
     api_key = (segmind_api_key or "").strip()
-    api_base = (segmind_api_base or "").strip()
-    model = normalize_model(default_model)
-
-    if api_key:
-        updates["SEGMIND_API_KEY"] = api_key
-    if api_base:
-        updates["SEGMIND_API_BASE"] = api_base
-    updates["SEGMIND_MODEL"] = model
+    api_base = (segmind_api_base or "").strip().rstrip("/")
+    effective_key = api_key or app_settings.get_segmind_api_key()
+    effective_base = api_base or app_settings.get_segmind_api_base()
 
     try:
-        update_env_values(updates)
-        message = "API settings were saved. Restart the GUI to use the new key/model for new generations."
+        if not effective_base.startswith(("https://", "http://")):
+            raise ValueError("API base must start with http:// or https://.")
+        update_env_values({"SEGMIND_API_KEY": effective_key, "SEGMIND_API_BASE": effective_base})
+        app_settings.apply_runtime_segmind_settings(api_key=effective_key, api_base=effective_base)
+        _segmind_balance_cache.update({"expires_at": 0.0, "context": None})
+        message = "API settings were saved and applied."
+        message_key = "flash_api_settings_saved"
     except Exception as exc:
         message = f"API settings were not saved: {type(exc).__name__}: {exc}"
+        message_key = "flash_api_settings_failed"
 
     return templates.TemplateResponse(
         "index.html",
-        base_context(request, message=message),
+        base_context(request, message=message, message_key=message_key),
     )
 
 
@@ -2130,7 +2214,7 @@ async def update_queued_task(
         message = f"Queue item #{task_id} was not found."
         return templates.TemplateResponse("index.html", base_context(request, message=message), status_code=404)
 
-    if task.get("status") != "queued":
+    if task.get("status") not in {"queued", "paused", "draft", "pending"}:
         message = f"Queue item #{task_id} is already {task.get('status')} and cannot be edited in queue."
         return templates.TemplateResponse("index.html", base_context(request, message=message))
 
@@ -2202,7 +2286,7 @@ def remove_queued_task(task_id: int, request: Request):
         message = f"Queue item #{task_id} was not found."
         return templates.TemplateResponse("index.html", base_context(request, message=message), status_code=404)
 
-    if task.get("status") != "queued" or task.get("request_id") or task.get("output_path"):
+    if task.get("status") not in {"queued", "paused", "draft", "pending"} or task.get("request_id") or task.get("output_path"):
         message = f"Queue item #{task_id} is not a removable queued item."
         return templates.TemplateResponse("index.html", base_context(request, message=message))
 
@@ -2564,6 +2648,10 @@ def process_single_generation_task_real(task_id: int) -> None:
             refs_for_save.append(saved_item)
             uploaded_reference_urls.append(uploaded_url)
 
+        requested_seed = int(params.get("requested_seed", params.get("seed", -1)))
+        is_random_seed = bool(params.get("random_seed", requested_seed < 0))
+        params.update(seed_metadata(-1 if is_random_seed else requested_seed))
+
         payload = client.build_seedance_payload(
             prompt=task.get("prompt") or params.get("prompt") or "",
             reference_images=uploaded_reference_urls,
@@ -2604,6 +2692,7 @@ def process_single_generation_task_real(task_id: int) -> None:
 
         transient_404_count = 0
         transient_network_error_count = 0
+        status_response = None
         while True:
             try:
                 status_response = client.get_request_status(request_id)
@@ -2636,6 +2725,32 @@ def process_single_generation_task_real(task_id: int) -> None:
         if not result_response.ok:
             raise RuntimeError(f"Result fetch failed with status {result_response.status_code}: {result_response.text_preview}")
 
+        actual_seed = next(
+            (
+                value
+                for value in (
+                    extract_seed_from_response(result_response),
+                    extract_seed_from_response(status_response),
+                    extract_seed_from_response(submit_response),
+                )
+                if value is not None
+            ),
+            None,
+        )
+        if actual_seed is None and not is_random_seed:
+            actual_seed = requested_seed
+        params["actual_seed"] = actual_seed
+        params_for_save.update(
+            {
+                "seed": params["seed"],
+                "requested_seed": params["requested_seed"],
+                "random_seed": is_random_seed,
+                "actual_seed": actual_seed,
+            }
+        )
+        update_task_params(task_id, params)
+        (run_dir / "params.json").write_text(json.dumps(params_for_save, indent=2, ensure_ascii=False), encoding="utf-8")
+
         video_url = extract_output_url(result_response.data)
         if not video_url:
             raise RuntimeError("No video URL found in result response.")
@@ -2655,6 +2770,9 @@ def process_single_generation_task_real(task_id: int) -> None:
             "status": "completed",
             "elapsed_total_seconds": elapsed_total_seconds,
             "inference_time": inference_time,
+            "requested_seed": params["requested_seed"],
+            "random_seed": is_random_seed,
+            "actual_seed": actual_seed,
             "video_path": str(video_path),
             "video_size_bytes": video_path.stat().st_size,
             "single_generation_name": params.get("single_generation_name"),
@@ -2754,7 +2872,7 @@ async def run_single_generation(
         "resolution": resolution,
         "aspect_ratio": aspect_ratio,
         "generate_audio": bool(generate_audio),
-        "seed": seed,
+        **seed_metadata(seed),
         "return_last_frame": bool(return_last_frame),
         "skip_moderation": False,
         "mode": "single_generation_paid",
@@ -2835,6 +2953,26 @@ def retry_task(task_id: int, request: Request):
             },
         ),
     )
+
+
+@app.post("/delete-failed-task/{task_id}", response_class=HTMLResponse)
+def delete_failed_task(task_id: int, request: Request):
+    task = get_task(task_id)
+    if not task or not task_matches_project(task, **active_project_task_filter()):
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=f"Failed task #{task_id} was not found in the active project."),
+            status_code=404,
+        )
+
+    if task.get("status") not in {"failed", "recoverable"} or task.get("output_path"):
+        return templates.TemplateResponse(
+            "index.html",
+            base_context(request, message=f"Task #{task_id} is not a removable failed record."),
+        )
+
+    delete_task(task_id)
+    return redirect_home(f"Failed task #{task_id} was removed from history. Files on disk were not deleted.")
 
 
 @app.post("/recover-task/{task_id}", response_class=HTMLResponse)
@@ -3023,8 +3161,7 @@ def health():
         "stage": "product_ui",
         "version": APP_VERSION,
         "release_tag": APP_RELEASE_TAG,
-        "api_key_set": bool(SEGMIND_API_KEY),
-        "default_model": SEGMIND_MODEL,
+        "api_key_set": env_key_is_set(),
         "available_models": [item["id"] for item in MODEL_CHOICES],
         "output_dir": str(projects_module.get_active_project_dir()),
         "queue_tasks_count": len(active_project_tasks(limit=1000)),
@@ -3165,7 +3302,7 @@ def continue_from_task(request: Request, task_id: int):
             "resolution": str(parent_params.get("resolution", "480p")),
             "aspect_ratio": str(parent_params.get("aspect_ratio", "16:9")),
             "generate_audio": bool(parent_params.get("generate_audio", False)),
-            "seed": -1,
+            **seed_metadata(-1),
             "return_last_frame": True,
             "skip_moderation": False,
             "mode": "continuation_queued_no_generation_yet",

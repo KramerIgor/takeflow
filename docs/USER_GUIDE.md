@@ -45,7 +45,7 @@ Open **Projects / Проекты**.
 
 1. Paste your Segmind API key.
 2. Confirm the API base URL.
-3. Select the default Seedance model.
+3. Save the API settings; they apply immediately without restarting Takeflow.
 4. Keep the default `outputs/MyFirstProject` folder next to the installed app or choose another output root using **Choose / Выбрать**.
 5. Create or select a project folder.
 
@@ -53,7 +53,7 @@ Takeflow does not move existing project folders when the output root changes.
 
 Never share screenshots containing an API key. Takeflow does not display the saved key after it is stored.
 
-While a generation is active, the History rail refreshes automatically without replacing the form. Its progress indicator is an estimate based on recent completed runs, not an exact value reported by Segmind.
+While a generation is active, Takeflow patches only its active History card. The prompt caret and completed video players are not replaced. Its progress indicator is an estimate based on recent completed runs, not an exact value reported by Segmind.
 
 ## Single Generation
 
@@ -62,15 +62,16 @@ While a generation is active, the History rail refreshes automatically without r
 3. Enter the prompt.
 4. Attach references using the Add tile or drag and drop.
 5. Select model, duration, resolution and aspect ratio.
-6. Review the local cost estimate.
-7. Press the paid generation button.
-8. Read and confirm the paid-action dialog.
+6. Keep **Random seed** enabled for a new random result, or disable it and enter a fixed seed for repeatability.
+7. Review the local cost estimate.
+8. Press the paid generation button.
+9. Read and confirm the paid-action dialog.
 
 The task appears in the right-side history while it is processing. Refreshing history does not clear the current prompt.
 
 ## References
 
-- Current Seedance 2.0 Base, Mini and Fast configurations allow up to 9 attached files.
+- Current Seedance 2.0 Pro, Fast and Mini configurations allow up to 9 attached files.
 - The limit is model-specific and may differ for future models.
 - Image references are submitted through the supported API workflow.
 - Video and audio files can be stored with task history even when the current API path does not submit them.
@@ -88,9 +89,9 @@ Use **Queue / Очередь** to prepare several tasks before processing:
 3. Edit or remove queued items if needed.
 4. Start the paid queue only when the complete list is correct.
 
-Queue history appears in the right rail. Details remain collapsed until opened.
+Queue history appears in the right rail. A not-yet-started task exposes **Edit in queue** and **Remove from queue** directly. After completion, **Edit prompt** opens the settings in Single Generation. Details remain collapsed until opened.
 
-CSV import can validate a batch without creating paid requests. Preview the CSV first, then confirm task creation. Creating queue tasks does not itself start paid generation.
+CSV import is the collapsed advanced section under Queue Controls. It can validate a batch without creating paid requests. Preview the CSV first, then confirm task creation. Creating queue tasks does not itself start paid generation.
 
 ## History
 
@@ -153,6 +154,12 @@ Do not publish this log without checking it for local paths or other private inf
 - open task details and read the displayed error.
 
 Do not repeatedly confirm paid generation while the provider status is uncertain.
+
+### Friendly generation errors
+
+Takeflow recognizes common failures including interrupted connections, timeouts, invalid API keys, insufficient balance, provider capacity or rate limits, invalid parameters, reference upload failures and result download failures. The card shows a short explanation; the original technical exception remains under **Debug / files**.
+
+When no Segmind request ID was received, Single history offers **Send again** and Queue history offers **Add to queue again**. Adding a queued copy does not start paid generation. When a request ID exists, use **Check result** first to avoid a duplicate paid request. A failed history record can be deleted separately without deleting files on disk.
 
 ## Uninstall
 

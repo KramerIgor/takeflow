@@ -43,11 +43,14 @@ def main() -> int:
         expect("single_has_dropzone", "data-single-dropzone" in HTML and 'dropzone.addEventListener("drop"' in single_js),
         expect("single_has_file_input_change", 'fileInput.addEventListener("change"' in single_js),
         expect("single_has_data_transfer_sync", "new DataTransfer()" in single_js),
+        expect("single_paste_files_become_references", 'promptEditor.addEventListener("paste"' in single_js and "referenceFilesFromClipboard(event)" in single_js and "addFiles(files)" in single_js),
         expect("single_has_no_queue_edit_scope", "setQueueEditMode" not in single_js and "cancelEditButton" not in single_js and "queue-edit-button" not in single_js),
         expect("queue_has_prompt_and_file_dropzones", "wireDropzone(promptDropzone)" in queue_js and "wireDropzone(fileDropzone)" in queue_js),
+        expect("queue_paste_files_become_references", 'promptEditor.addEventListener("paste"' in queue_js and "referenceFilesFromClipboard(event)" in queue_js and "addFiles(files)" in queue_js),
         expect("queue_has_edit_in_queue_handlers", "setQueueEditMode" in queue_js and "cancelEditButton.addEventListener" in queue_js and "queue-edit-button" in queue_js),
         expect("queue_has_update_route", "/update-queued-task/" in queue_js),
         expect("reference_accepts_media", "video/mp4" in HTML and "audio/mpeg" in HTML),
+        expect("clipboard_image_gets_stable_filename", "screenshot-" in APP_JS and "normalizeClipboardFile" in APP_JS),
     ]
 
     if all(checks):

@@ -36,8 +36,8 @@ async function refreshHistoryRail(historyKind, options = {}) {
     if (window.seedanceInitHistoryPagination) {
       window.seedanceInitHistoryPagination();
     }
-    if (window.seedanceSetLanguage) {
-      window.seedanceSetLanguage(localStorage.getItem("seedance_gui_language_v1") || "en");
+    if (window.seedanceLocalizeRoot) {
+      window.seedanceLocalizeRoot(railPanel, localStorage.getItem("seedance_gui_language_v1") || "en");
     }
 
     const activeButton = railPanel.querySelector('[data-refresh-history="' + historyKind + '"]');
@@ -64,7 +64,78 @@ async function refreshHistoryRail(historyKind, options = {}) {
   }
 }
 
+async function refreshProcessingHistoryCards(historyKind) {
+  const selector = '[data-history-rail-content="' + historyKind + '"]';
+  const railContent = document.querySelector(selector);
+  const railPanel = railContent ? railContent.closest(".history-rail-panel") : null;
+  if (!railContent || !railPanel) {
+    return false;
+  }
+
+  const activeCards = Array.from(
+    railContent.querySelectorAll('[data-history-item][data-history-auto-refresh="true"][data-history-task-id]')
+  );
+  if (!activeCards.length) {
+    railPanel.dataset.historyAutoRefresh = "false";
+    return false;
+  }
+
+  try {
+    const response = await fetch("/", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error("History refresh failed with HTTP " + response.status);
+    }
+    const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+    const freshContent = doc.querySelector(selector);
+    const freshPanel = freshContent ? freshContent.closest(".history-rail-panel") : null;
+    if (!freshContent || !freshPanel) {
+      return false;
+    }
+
+    const lang = localStorage.getItem("seedance_gui_language_v1") || "en";
+    for (const card of activeCards) {
+      const taskId = card.dataset.historyTaskId;
+      const freshCard = Array.from(freshContent.querySelectorAll("[data-history-item][data-history-task-id]")).find(function (candidate) {
+        return candidate.dataset.historyTaskId === taskId;
+      });
+      if (!freshCard || !card.isConnected) {
+        continue;
+      }
+
+      const detailsOpen = Boolean(card.querySelector(".history-details")?.open);
+      const replacement = freshCard.cloneNode(true);
+      const replacementDetails = replacement.querySelector(".history-details");
+      if (replacementDetails) {
+        replacementDetails.open = detailsOpen;
+      }
+      if (window.seedanceLocalizeRoot) {
+        window.seedanceLocalizeRoot(replacement, lang);
+      }
+      card.replaceWith(replacement);
+
+      const currentBatchTitle = replacement.closest("[data-history-batch-section]")?.querySelector(".queue-batch-title");
+      const freshBatchTitle = freshCard.closest("[data-history-batch-section]")?.querySelector(".queue-batch-title");
+      if (currentBatchTitle && freshBatchTitle) {
+        const titleReplacement = freshBatchTitle.cloneNode(true);
+        if (window.seedanceLocalizeRoot) {
+          window.seedanceLocalizeRoot(titleReplacement, lang);
+        }
+        currentBatchTitle.replaceWith(titleReplacement);
+      }
+    }
+
+    railPanel.dataset.historyAutoRefresh = freshPanel.dataset.historyAutoRefresh || "false";
+    document.dispatchEvent(new CustomEvent("seedance:history-refreshed", {
+      detail: { historyKind, automatic: true, targeted: true }
+    }));
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
 window.seedanceRefreshHistoryRail = refreshHistoryRail;
+window.seedanceRefreshProcessingHistoryCards = refreshProcessingHistoryCards;
 
 document.addEventListener("click", async function (event) {
   const refreshButton = event.target.closest("[data-refresh-history]");

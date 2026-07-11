@@ -15,8 +15,8 @@ def main() -> int:
     combined = html + "\n" + app_js
 
     required = [
-        'window.seedanceRefreshHistoryRail("single"',
-        'window.seedanceRefreshHistoryRail("queue"',
+        'window.seedanceRefreshProcessingHistoryCards("single")',
+        'window.seedanceRefreshProcessingHistoryCards("queue")',
         "autoRefreshEnabled",
         "refreshIntervalMs",
         '<script type="module" src="/static/app.js?v={{ static_asset_version }}"></script>',
@@ -28,6 +28,8 @@ def main() -> int:
         "freshContent = doc.querySelector(selector)",
         'freshContent.closest(".history-rail-panel")',
         "window.seedanceInitHistoryPagination()",
+        "card.replaceWith(replacement)",
+        "window.seedanceLocalizeRoot(replacement, lang)",
     ]
 
     missing = [item for item in required if item not in combined]
@@ -39,6 +41,11 @@ def main() -> int:
     present_forbidden = [item for item in forbidden if item in combined]
     if present_forbidden:
         print("forbidden_refresh_guard_parts=" + repr(present_forbidden))
+        return 1
+
+    auto_refresh = (PROJECT_ROOT / "app" / "static" / "js" / "auto-refresh.js").read_text(encoding="utf-8")
+    if "seedanceRefreshHistoryRail" in auto_refresh or "railPanel.innerHTML" in auto_refresh:
+        print("automatic_refresh_is_not_targeted=True")
         return 1
 
     print("REFRESH_GUARD_OK")

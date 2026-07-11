@@ -61,7 +61,10 @@ Keep backend-generated technical values separate from localized display labels. 
 - Existing data attributes and form names are regression-test contracts.
 - The hidden prompt textarea remains the backend source of truth.
 - Rich reference chips synchronize to tokens such as <@filename>.
-- History refresh updates only the history rail and must preserve form state.
+- Automatic history refresh patches only queued/processing cards by task id. It must preserve prompt focus/caret, form state, rail scroll and existing completed video elements.
+- Manual history refresh may rebuild the rail, but it must not dispatch a global language change or alter the generation form.
+- Random seed is represented by `random_seed=true` and request seed `-1`; persist `actual_seed` when Segmind exposes it in response headers or JSON.
+- API key and API base updates are runtime settings and must not require a process restart. Model choice belongs to the generation forms, not Projects/API settings.
 - Plain ES modules are preferred; do not introduce a build system or heavy framework without approval.
 
 ## Development Setup

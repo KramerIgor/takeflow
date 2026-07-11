@@ -38,7 +38,6 @@ def main_run() -> int:
         'formaction="/add-to-queue"',
         'formaction="/draft-task"',
         'action="/run-single-generation"',
-        'action="/start-queue-once"',
         'action="/start-queue-loop"',
         'action="/batch-import"',
     ]
@@ -88,6 +87,7 @@ def main_run() -> int:
             'name="resolution"',
             'name="aspect_ratio"',
             'name="seed"',
+            'name="random_seed"',
             'name="generate_audio"',
             'name="return_last_frame"',
             'name="reference_files"',

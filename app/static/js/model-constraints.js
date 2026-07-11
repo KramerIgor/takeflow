@@ -107,7 +107,7 @@ window.seedanceModelCapabilities = (window.seedanceConfig && window.seedanceConf
         "duration",
         config.durations,
         config.default_duration,
-        function (value) { return value + " seconds"; },
+        function (value) { return value + " " + translate("duration_seconds_short"); },
         desired.duration
       );
       syncSelect("resolution", config.resolutions, config.default_resolution, null, desired.resolution);
@@ -155,6 +155,11 @@ window.seedanceModelCapabilities = (window.seedanceConfig && window.seedanceConf
 
       document.addEventListener("seedance:language-changed", function () {
         for (const form of forms) {
+          window.seedanceSyncModelOptions(form, {
+            duration: form.elements.duration && form.elements.duration.value,
+            resolution: form.elements.resolution && form.elements.resolution.value,
+            aspect_ratio: form.elements.aspect_ratio && form.elements.aspect_ratio.value
+          });
           updateCostEstimate(form);
         }
       });

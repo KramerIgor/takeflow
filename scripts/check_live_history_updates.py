@@ -49,7 +49,11 @@ def main() -> int:
         "progress_styles": ".history-generation-progress" in styles
         and ".history-progress-ring" in styles,
         "history_refresh_api": "window.seedanceRefreshHistoryRail" in scripts,
-        "single_history_polling": 'window.seedanceRefreshHistoryRail("single"' in scripts,
+        "targeted_history_polling": 'window.seedanceRefreshProcessingHistoryCards("single")' in scripts
+        and 'window.seedanceRefreshProcessingHistoryCards("queue")' in scripts,
+        "only_active_cards_replaced": 'data-history-auto-refresh="true"' in scripts
+        and "card.replaceWith(replacement)" in scripts
+        and "railPanel.innerHTML" not in (PROJECT_ROOT / "app" / "static" / "js" / "auto-refresh.js").read_text(encoding="utf-8"),
         "prompt_safe_refresh": "window.location.reload()" not in (
             PROJECT_ROOT / "app" / "static" / "js" / "auto-refresh.js"
         ).read_text(encoding="utf-8"),

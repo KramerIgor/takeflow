@@ -272,9 +272,18 @@ async function run() {
     prompt.dispatchEvent(new Event("input", { bubbles: true }));
     document.querySelector('[data-refresh-history="single"]')?.click();
     await new Promise((resolve) => setTimeout(resolve, 1200));
+    const stableVideo = document.querySelector('[data-history-rail-content="single"] video');
+    editor.focus();
+    const caretRange = document.createRange();
+    caretRange.selectNodeContents(editor);
+    caretRange.collapse(false);
+    const caretSelection = window.getSelection();
+    caretSelection.removeAllRanges();
+    caretSelection.addRange(caretRange);
+    const expectedCaretOffset = caretSelection.anchorOffset;
     let automaticRefreshSeen = false;
     document.addEventListener("seedance:history-refreshed", function onRefresh(event) {
-      if (event.detail?.historyKind === "single") {
+      if (event.detail?.historyKind === "single" && event.detail?.targeted === true) {
         automaticRefreshSeen = true;
       }
     }, { once: true });
@@ -283,7 +292,9 @@ async function run() {
       active: document.querySelector('[data-tab-panel="single-generation"]')?.classList.contains("active") === true,
       prompt: prompt.value,
       editorText: editor?.innerText || "",
-      automaticRefreshSeen
+      automaticRefreshSeen,
+      caretPreserved: window.getSelection()?.anchorOffset === expectedCaretOffset,
+      completedVideoPreserved: !stableVideo || stableVideo === document.querySelector('[data-history-rail-content="single"] video')
     };
   })()`);
 
@@ -342,6 +353,47 @@ async function run() {
     fs.writeFileSync(path.join(outDir, "prompt_refs.png"), Buffer.from(shot.data, "base64"));
   });
 
+  const clipboardPaste = await evalJs(`(() => {
+    document.querySelector('[data-tab-target="single-generation"]')?.click();
+    const editor = document.querySelector('.single-generation-form [data-prompt-rich-editor]');
+    const source = document.querySelector('.single-generation-form textarea[name="prompt"]');
+    const before = document.querySelectorAll('.single-generation-form .ref-card').length;
+    const clipboard = new DataTransfer();
+    clipboard.items.add(new File(["clipboard-image"], "image.png", { type: "image/png" }));
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: clipboard });
+    const dispatchResult = editor.dispatchEvent(event);
+    const cards = Array.from(document.querySelectorAll('.single-generation-form .ref-card'));
+    const pastedCard = cards[cards.length - 1];
+    const textClipboard = new DataTransfer();
+    textClipboard.setData("text/plain", "plain text remains text");
+    const textEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(textEvent, "clipboardData", { value: textClipboard });
+    editor.dispatchEvent(textEvent);
+    document.querySelector('[data-tab-target="queue-workflow"]')?.click();
+    const queueEditor = document.querySelector('.queue-generation-form [data-queue-prompt-rich-editor]');
+    const queueBefore = document.querySelectorAll('.queue-generation-form .ref-card').length;
+    const queueClipboard = new DataTransfer();
+    queueClipboard.items.add(new File(["queue-clipboard-image"], "image.png", { type: "image/png" }));
+    const queueEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(queueEvent, "clipboardData", { value: queueClipboard });
+    queueEditor.dispatchEvent(queueEvent);
+    const queueCards = Array.from(document.querySelectorAll('.queue-generation-form .ref-card'));
+    document.querySelector('[data-tab-target="single-generation"]')?.click();
+    return {
+      before,
+      after: cards.length,
+      prevented: dispatchResult === false || event.defaultPrevented,
+      filename: pastedCard?.title || "",
+      noEmbeddedImage: Array.from(editor.querySelectorAll("img")).every((image) => Boolean(image.closest(".prompt-inline-ref"))),
+      promptUnchanged: source.value.includes("<@browser-single-ref.png>"),
+      plainTextAllowed: !textEvent.defaultPrevented,
+      queueAdded: queueCards.length === queueBefore + 1,
+      queueFilename: queueCards[queueCards.length - 1]?.title || "",
+      queueNoEmbeddedImage: Array.from(queueEditor.querySelectorAll("img")).every((image) => Boolean(image.closest(".prompt-inline-ref")))
+    };
+  })()`);
+
   const referenceLimit = await evalJs(`(() => {
     function dropFile(zoneSelector, fileName, type) {
       const zone = document.querySelector(zoneSelector);
@@ -361,6 +413,36 @@ async function run() {
       addDisabled: document.querySelector("[data-trigger-reference-picker]")?.disabled === true
     };
   })()`);
+
+  const failedActions = await evalJs(`(() => {
+    window.seedanceSetLanguage("en");
+    window.seedanceActivateTab("queue-workflow");
+    const queueCard = document.querySelector('.queue-history-card .status-failed')?.closest('[data-history-item]');
+    const queueDetails = queueCard?.querySelector('.history-details');
+    if (queueDetails) queueDetails.open = true;
+    const queueDebug = queueCard?.querySelector('.queue-debug');
+    const queueError = queueCard?.querySelector('.queue-error')?.textContent.trim() || "";
+    const queue = {
+      retry: Boolean(queueCard?.querySelector('[data-i18n="add_to_queue_again"]')),
+      remove: Boolean(queueCard?.querySelector('[data-i18n="delete_error_record"]')),
+      friendly: queueError.includes("before Takeflow received confirmation"),
+      rawOnlyInDebug: Boolean(queueDebug && queueDebug.textContent.includes("UNEXPECTED_EOF_WHILE_READING")),
+      noDisabledOpen: !queueCard?.querySelector('button[disabled][data-i18n="open_video"]')
+    };
+    window.seedanceActivateTab("single-generation");
+    const singleCard = document.querySelector('.single-history-card:not(.queue-history-card) .status-failed')?.closest('[data-history-item]');
+    const single = {
+      retry: Boolean(singleCard?.querySelector('[data-i18n="send_again"]')),
+      remove: Boolean(singleCard?.querySelector('[data-i18n="delete_error_record"]')),
+      noDisabledOpen: !singleCard?.querySelector('button[disabled][data-i18n="open_video"]')
+    };
+    window.seedanceActivateTab("queue-workflow");
+    return { queue, single };
+  })()`);
+
+  await cdp.send("Page.captureScreenshot", { format: "png" }).then((shot) => {
+    fs.writeFileSync(path.join(outDir, "failed-actions.png"), Buffer.from(shot.data, "base64"));
+  });
 
   const history = await evalJs(`(() => {
     function inject(kind) {
@@ -434,7 +516,19 @@ async function run() {
       sequentialDisabled,
       parallelEnabled: concurrency?.disabled === false,
       max: concurrency?.max,
-      noOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth
+      noOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      batchInsideControls: document.querySelector("[data-batch-import-panel]")?.parentElement === document.querySelector("[data-queue-controls-panel]"),
+      noRunNext: !document.querySelector(".advanced-run")
+    };
+  })()`);
+
+  const formDefaults = await evalJs(`(() => {
+    const forms = Array.from(document.querySelectorAll(".generation-form"));
+    return {
+      randomSeedControls: forms.length > 0 && forms.every((form) => form.querySelector("[data-random-seed]")?.defaultChecked === true),
+      audioControls: forms.length > 0 && forms.every((form) => form.elements.generate_audio?.defaultChecked === true),
+      shortModelLabels: Array.from(document.querySelectorAll('select[name="model"] option')).every((option) => ["Seedance 2.0 Pro", "Seedance 2.0 Fast", "Seedance 2.0 Mini"].includes(option.textContent.trim())),
+      noDefaultModelSetting: !document.querySelector('select[name="default_model"]')
     };
   })()`);
 
@@ -478,22 +572,27 @@ async function run() {
     ru_add_tile_fits: i18n.ru.addLabel === "Файл" && !i18n.ru.addButtonOverflow,
     cost_estimate_live: costEstimate.expectedFastEstimate && costEstimate.expectedFastLongEstimate && costEstimate.expectedFastSquareEstimate && costEstimate.note.length > 0,
     text_to_audio_removed: textToAudioRemoved.noTab && textToAudioRemoved.noPanel && textToAudioRemoved.noForm && textToAudioRemoved.noRouteForm,
-    refresh_preserves_prompt: refresh.prompt === "BROWSER_CDP_REFRESH_GUARD_KEEP" && refresh.editorText.includes("BROWSER_CDP_REFRESH_GUARD_KEEP") && refresh.active && refresh.automaticRefreshSeen,
+    refresh_preserves_prompt: refresh.prompt === "BROWSER_CDP_REFRESH_GUARD_KEEP" && refresh.editorText.includes("BROWSER_CDP_REFRESH_GUARD_KEEP") && refresh.active && refresh.automaticRefreshSeen && refresh.caretPreserved,
+    targeted_refresh_preserves_video: refresh.completedVideoPreserved,
     dragdrop_refs: dragdrop.singleCards >= 1 && dragdrop.queueCards >= 1 && dragdrop.queueTitle.includes("browser-queue-audio.mp3"),
     references_inside_prompt: dragdrop.singleInsidePrompt && dragdrop.queueInsidePrompt,
     reference_cards_are_visual_only: !dragdrop.singleCardText.includes("browser-single-ref.png"),
     reference_count_visible: dragdrop.singleCounter === "1/9",
+    clipboard_image_becomes_reference: clipboardPaste.after === clipboardPaste.before + 1 && clipboardPaste.prevented && clipboardPaste.filename.startsWith("screenshot-") && clipboardPaste.filename.endsWith(".png") && clipboardPaste.noEmbeddedImage && clipboardPaste.promptUnchanged && clipboardPaste.plainTextAllowed && clipboardPaste.queueAdded && clipboardPaste.queueFilename.startsWith("screenshot-") && clipboardPaste.queueNoEmbeddedImage,
     reference_limit_enforced: referenceLimit.cards === referenceLimit.expectedLimit && referenceLimit.counter === referenceLimit.expectedLimit + "/" + referenceLimit.expectedLimit && referenceLimit.addDisabled,
     token_menu_inside_prompt: dragdrop.tokenMenuInsidePrompt && dragdrop.tokenOptionText.includes("browser-single-ref.png"),
     reference_tokens_highlighted: dragdrop.singlePromptText.includes("<@browser-single-ref.png>") && dragdrop.inlineRefText.includes("browser-single-ref.png") && !dragdrop.bottomTokenPreviewExists,
     pagination_and_details: history.single.pagerVisible && history.queue.pagerVisible && history.single.detailsOpen && history.queue.detailsOpen && history.single.indicator === "2 / 2" && history.queue.indicator === "2 / 2",
     paid_modal_safe: modal.visible && modal.closedByEscape && modal.title === "This will start a paid generation. Continue?",
     queue_modes_work: queueControls.modeValue === "parallel" && queueControls.sequentialDisabled && queueControls.parallelEnabled && queueControls.max === "10" && queueControls.noOverflow,
+    queue_controls_polished: queueControls.batchInsideControls && queueControls.noRunNext,
+    form_defaults_and_labels: formDefaults.randomSeedControls && formDefaults.audioControls && formDefaults.shortModelLabels && formDefaults.noDefaultModelSetting,
+    failed_actions_and_errors: Object.values(failedActions.queue).every(Boolean) && Object.values(failedActions.single).every(Boolean),
     mobile_no_overflow: !mobile.overflow,
     no_console_errors: errors.length === 0
   };
   const ok = Object.values(checks).every(Boolean);
-  const result = { checks, failedChecks: Object.entries(checks).filter(([, value]) => !value).map(([key]) => key), initial, tabs, i18n, costEstimate, textToAudioRemoved, refresh, dragdrop, referenceLimit, history, modal, queueControls, mobile, errors, screenshots: outDir, new_paid_submit_started: false };
+  const result = { checks, failedChecks: Object.entries(checks).filter(([, value]) => !value).map(([key]) => key), initial, tabs, i18n, costEstimate, textToAudioRemoved, refresh, dragdrop, clipboardPaste, referenceLimit, history, modal, queueControls, formDefaults, failedActions, mobile, errors, screenshots: outDir, new_paid_submit_started: false };
   fs.writeFileSync(path.join(outDir, "browser_check_result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
   cdp.close();
@@ -580,7 +679,40 @@ task_id = create_task(
     status="processing",
 )
 update_task_fields(task_id, started_at=utc_now())
-""" % str(SAFE_OUTPUT_ROOT / "MyFirstProject")
+queue_failed_id = create_task(
+    model="seedance-2.0-mini",
+    prompt="Browser-only failed queue check",
+    params={
+        "mode": "queued_no_generation_yet",
+        "project_name": "MyFirstProject",
+        "project_dir": r"%s",
+        "duration": 4,
+        "resolution": "480p",
+        "aspect_ratio": "16:9",
+        "seed": -1,
+    },
+    refs=[],
+    status="failed",
+)
+update_task_fields(queue_failed_id, error="ConnectError: [SSL: UNEXPECTED_EOF_WHILE_READING] browser-only")
+single_failed_id = create_task(
+    model="seedance-2.0-mini",
+    prompt="Browser-only failed single check",
+    params={
+        "mode": "single_generation_paid",
+        "single_generation_name": "Failed single check",
+        "project_name": "MyFirstProject",
+        "project_dir": r"%s",
+        "duration": 4,
+        "resolution": "480p",
+        "aspect_ratio": "16:9",
+        "seed": -1,
+    },
+    refs=[],
+    status="failed",
+)
+update_task_fields(single_failed_id, error="Synthetic single failure")
+""" % (str(SAFE_OUTPUT_ROOT / "MyFirstProject"), str(SAFE_OUTPUT_ROOT / "MyFirstProject"), str(SAFE_OUTPUT_ROOT / "MyFirstProject"))
     seed_result = subprocess.run(
         [sys.executable, "-c", seed_script],
         cwd=PROJECT_ROOT,

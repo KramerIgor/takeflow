@@ -9,6 +9,9 @@ document.addEventListener("DOMContentLoaded", function () {
           creator_name: "Игорь Олегович Крамер / IOKRAMER",
           flash_output_root_changed: "Корневая папка изменена на «{root}». Активный проект в новой папке: «{project}».",
           flash_queue_task_added: "Задача №{id} добавлена в очередь. Платная генерация не запускалась.",
+          flash_api_settings_saved: "Настройки API сохранены и применены.",
+          flash_api_settings_failed: "Не удалось сохранить настройки API.",
+          close_notification: "Закрыть уведомление",
           shutdown_server: "Выход",
           shutting_down: "Выключение...",
           confirm_shutdown_server: "Выключить локальный сервер Takeflow?",
@@ -47,7 +50,7 @@ document.addEventListener("DOMContentLoaded", function () {
           api_key_set: "API ключ задан",
           api_key_missing: "API ключ не задан",
           save_api: "Сохранить API",
-          api_restart_hint: "Перезапусти GUI после смены ключа или модели.",
+          api_applies_immediately: "Изменения применяются сразу.",
           project_list: "Папки проектов",
           create_project: "Создать проект",
           create: "Создать",
@@ -77,7 +80,6 @@ document.addEventListener("DOMContentLoaded", function () {
           edit_prompt: "Редактировать промпт",
           edit_in_queue: "Редактировать в очереди",
           regenerate: "Перегенерировать",
-          run_as_single_paid: "Запустить как одиночную (платно)",
           remove_from_queue: "Удалить из очереди",
           field_name: "Название",
           field_prompt: "Промпт",
@@ -88,6 +90,9 @@ document.addEventListener("DOMContentLoaded", function () {
           field_resolution: "Разрешение",
           field_aspect_ratio: "Соотношение",
           field_seed: "Seed",
+          random_seed: "Случайный seed",
+          random_seed_value: "Случайный",
+          random_seed_suffix: "(случайный)",
           field_generate_audio: "Генерировать аудио",
           field_return_last_frame: "Вернуть последний кадр",
           field_created: "Создано",
@@ -131,9 +136,6 @@ document.addEventListener("DOMContentLoaded", function () {
           max_concurrency: "Одновременных задач",
           start_full_queue_paid: "Запустить всю очередь (платно)",
           start_full_queue_hint: "Последовательный режим запускает задачи по одной. Параллельный запускает независимые задачи вместе; цепочки продолжения всё равно ждут родительскую задачу.",
-          run_next_summary: "Запустить только следующий элемент",
-          start_next_paid: "Запустить следующий элемент (платно)",
-          start_next_hint: "Обрабатывает только следующую задачу очереди.",
           last_queue_run: "Последний запуск очереди",
           processed_count: "Обработано",
           run_folder_result_files: "Папка run / файлы результата",
@@ -174,6 +176,8 @@ document.addEventListener("DOMContentLoaded", function () {
           queue_loop_running_for: "Очередь запущена для",
           page_refreshes_every: "Страница обновляется каждые",
           seconds: "секунд",
+          duration_seconds_short: "сек",
+          estimated_short: "оценка",
           queue_loop_stopped_error: "Очередь остановилась с ошибкой:",
           queue_loop_finished: "Очередь завершена:",
           processed_count_inline: "обработано",
@@ -210,6 +214,20 @@ document.addEventListener("DOMContentLoaded", function () {
           opened: "Открыто",
           open_failed: "Не удалось открыть",
           remove: "Удалить",
+          send_again: "Отправить ещё раз",
+          add_to_queue_again: "Добавить в очередь ещё раз",
+          check_failed_result: "Проверить результат",
+          delete_error_record: "Удалить запись",
+          technical_error: "Техническая ошибка",
+          generation_error_reference_upload: "Не удалось загрузить референс. Попробуйте файл меньшего размера или проверьте соединение.",
+          generation_error_connection: "Соединение прервалось до того, как Takeflow получил подтверждение. Перед повтором проверьте панель Segmind.",
+          generation_error_timeout: "Segmind не ответил вовремя. Проверьте соединение и попробуйте ещё раз.",
+          generation_error_auth: "Segmind отклонил API-ключ. Проверьте его в настройках проекта.",
+          generation_error_balance: "На балансе Segmind недостаточно средств для этой генерации.",
+          generation_error_capacity: "Segmind перегружен или достигнут лимит запросов. Повторите позже или уменьшите число параллельных задач.",
+          generation_error_parameters: "Segmind отклонил параметры генерации. Проверьте модель, настройки и референсы.",
+          generation_error_download: "Не удалось скачать результат. Если доступен ID запроса, используйте проверку результата.",
+          generation_error_generic: "Генерация завершилась с ошибкой. Технические сведения доступны в разделе Debug / файлы.",
           stored_history_not_api: "Сохранено в истории; в API не отправляется",
           placeholder_name: "Необязательное название, например opening-shot",
           placeholder_prompt: "Опишите видео-сцену...",
@@ -221,13 +239,13 @@ document.addEventListener("DOMContentLoaded", function () {
           switch_project: "Переключить",
           delete_project: "Удалить",
           confirm_remove_queue: "Удалить эту задачу из очереди? Сгенерированные файлы не будут затронуты.",
+          confirm_retry_queue: "Создать новую копию этой задачи в очереди? Платная генерация сейчас не запустится.",
+          confirm_delete_error_record: "Удалить эту запись об ошибке из истории? Файлы на диске удалены не будут.",
           confirm_switch_project: "Переключить активный проект на {name}?",
           confirm_delete_project: "Удалить папку проекта {name}? Это удалит файлы внутри этого проекта.",
           confirm_create_queued_tasks: "Будут созданы только задачи в очереди. Платная генерация не запустится. Продолжить?",
           confirm_stop_queue: "Остановить очередь после текущей задачи? Еще не начатые задачи будут приостановлены.",
-          confirm_start_full_queue: "Это запустит платные генерации Segmind в выбранном режиме очереди. Продолжить?",
-          confirm_start_next_item: "Это запустит платную генерацию Segmind только для следующей задачи в очереди. Продолжить?",
-          confirm_start_next_item: "Это запустит платную генерацию Segmind только для следующей задачи в очереди. Продолжить?"
+          confirm_start_full_queue: "Это запустит платные генерации Segmind в выбранном режиме очереди. Продолжить?"
         },
         en: {
           app_subtitle: "Local AI-video studio",
@@ -235,10 +253,16 @@ document.addEventListener("DOMContentLoaded", function () {
           creator_name: "Igor Olegovich Kramer / IOKRAMER",
           flash_output_root_changed: "Output root changed to “{root}”. Active project in the new root: “{project}”.",
           flash_queue_task_added: "Task #{id} was added to the queue. No paid generation was started.",
+          flash_api_settings_saved: "API settings were saved and applied.",
+          flash_api_settings_failed: "API settings could not be saved.",
+          close_notification: "Close notification",
           queue_run_mode: "Run mode",
           queue_mode_sequential: "Sequential",
           queue_mode_parallel: "Parallel",
           max_concurrency: "Parallel jobs",
+          seconds: "seconds",
+          duration_seconds_short: "seconds",
+          estimated_short: "estimated",
           start_full_queue_hint: "Sequential runs one task at a time. Parallel runs independent tasks together; continuation chains still wait for their parent.",
           shutdown_server: "Quit",
           shutting_down: "Shutting down...",
@@ -274,13 +298,30 @@ document.addEventListener("DOMContentLoaded", function () {
           choosing_output_root: "Choosing...",
           save_output_root: "Save folder",
           output_root_save_hint: "The active project name stays the same in the selected root.",
+          api_applies_immediately: "Changes apply immediately.",
           placeholder_output_root: "For example C:\\AI_OUTPUT or D:\\Takeflow",
           no_refs_attached: "No references attached yet.",
           drop_files_choose: "Drop files here or choose files.",
           add_files_short: "Add",
           remove: "Remove",
+          send_again: "Send again",
+          add_to_queue_again: "Add to queue again",
+          check_failed_result: "Check result",
+          delete_error_record: "Delete record",
+          technical_error: "Technical error",
+          generation_error_reference_upload: "The reference could not be uploaded. Try a smaller file or check the connection.",
+          generation_error_connection: "The connection was interrupted before Takeflow received confirmation. Check the Segmind dashboard before trying again.",
+          generation_error_timeout: "Segmind did not respond in time. Check the connection and try again.",
+          generation_error_auth: "Segmind rejected the API key. Check it in Projects settings.",
+          generation_error_balance: "There is not enough Segmind balance for this generation.",
+          generation_error_capacity: "Segmind is busy or the request limit was reached. Try again later or reduce parallel jobs.",
+          generation_error_parameters: "Segmind rejected the generation parameters. Check the model settings and references.",
+          generation_error_download: "The generation result could not be downloaded. Use result recovery if a request ID is available.",
+          generation_error_generic: "The generation failed. Open Debug / files for technical details.",
           stored_history_not_api: "Stored in history; not sent to API yet",
-          run_as_single_paid: "Run as Single (paid)",
+          random_seed: "Random seed",
+          random_seed_value: "Random",
+          random_seed_suffix: "(random)",
           status_value_completed: "Completed",
           status_value_processing: "Processing",
           status_value_queued: "Queued",
@@ -297,12 +338,13 @@ document.addEventListener("DOMContentLoaded", function () {
           opened: "Opened",
           open_failed: "Open failed",
           confirm_remove_queue: "Remove this queued item? No generated files will be touched.",
+          confirm_retry_queue: "Create a new queued copy of this task? No paid generation will start yet.",
+          confirm_delete_error_record: "Delete this failed record from history? Files on disk will not be deleted.",
           confirm_switch_project: "Switch active project to {name}?",
           confirm_delete_project: "Delete project folder {name}? This removes files inside that project.",
           confirm_create_queued_tasks: "This will create queued tasks only. No paid generation will start. Continue?",
           confirm_stop_queue: "Stop the queue after the current processing task? Not-started queued tasks will be paused.",
           confirm_start_full_queue: "This will start paid Segmind generations in the selected queue mode. Continue?",
-          confirm_start_next_item: "This will start a paid Segmind generation for only the next queued task. Continue?",
           estimated_generation_cost: "Estimated cost",
           cost_estimate_unavailable: "No estimate",
           cost_estimate_note: "Local estimate before submit.",
@@ -356,52 +398,67 @@ document.addEventListener("DOMContentLoaded", function () {
         return dict[key] || fallback[key] || String(value || "");
       }
 
-      function setLanguage(lang) {
+      function nodesWithin(root, selector) {
+        const nodes = Array.from(root.querySelectorAll(selector));
+        if (root.matches && root.matches(selector)) {
+          nodes.unshift(root);
+        }
+        return nodes;
+      }
+
+      function localizeRoot(root, lang) {
         const dict = translations[lang] || {};
-        document.documentElement.lang = lang;
-        for (const node of document.querySelectorAll("[data-i18n]")) {
+        for (const node of nodesWithin(root, "[data-i18n]")) {
           const key = node.dataset.i18n;
           if (!originalText.has(node)) {
             originalText.set(node, node.textContent);
           }
           node.textContent = dict[key] || originalText.get(node) || node.textContent;
         }
-        for (const node of document.querySelectorAll("[data-i18n-placeholder]")) {
+        for (const node of nodesWithin(root, "[data-i18n-placeholder]")) {
           const key = node.dataset.i18nPlaceholder;
           if (!originalPlaceholder.has(node)) {
             originalPlaceholder.set(node, node.getAttribute("placeholder") || "");
           }
           node.setAttribute("placeholder", dict[key] || originalPlaceholder.get(node) || "");
         }
-        for (const node of document.querySelectorAll("[data-i18n-data-placeholder]")) {
+        for (const node of nodesWithin(root, "[data-i18n-data-placeholder]")) {
           const key = node.dataset.i18nDataPlaceholder;
           if (!originalDataPlaceholder.has(node)) {
             originalDataPlaceholder.set(node, node.dataset.placeholder || "");
           }
           node.dataset.placeholder = dict[key] || originalDataPlaceholder.get(node) || "";
         }
-        for (const button of switchButtons) {
-          button.classList.toggle("active", button.dataset.langOption === lang);
-          button.setAttribute("aria-pressed", button.dataset.langOption === lang ? "true" : "false");
-        }
-        for (const title of document.querySelectorAll("[data-queue-label-en]")) {
+        for (const title of nodesWithin(root, "[data-queue-label-en]")) {
           title.textContent = lang === "ru" ? title.dataset.queueLabelRu : title.dataset.queueLabelEn;
         }
-        for (const node of document.querySelectorAll("[data-status-value]")) {
+        for (const node of nodesWithin(root, "[data-status-value]")) {
           node.textContent = statusLabel(node.dataset.statusValue, lang);
         }
-        for (const node of document.querySelectorAll("[data-flash-message]")) {
+        for (const node of nodesWithin(root, "[data-flash-message]")) {
           let params = {};
           try {
             params = JSON.parse(node.dataset.flashParams || "{}");
           } catch (_error) {
             params = {};
           }
-          node.textContent = interpolate(translate(node.dataset.flashMessage), params);
+          const fallback = translations.en || {};
+          node.textContent = interpolate(dict[node.dataset.flashMessage] || fallback[node.dataset.flashMessage], params);
+        }
+      }
+
+      function setLanguage(lang) {
+        document.documentElement.lang = lang;
+        localizeRoot(document, lang);
+        for (const button of switchButtons) {
+          button.classList.toggle("active", button.dataset.langOption === lang);
+          button.setAttribute("aria-pressed", button.dataset.langOption === lang ? "true" : "false");
         }
         localStorage.setItem(storageKey, lang);
         document.dispatchEvent(new CustomEvent("seedance:language-changed", { detail: { lang: lang } }));
       }
+
+      window.seedanceLocalizeRoot = localizeRoot;
 
       function confirmActionModal(message) {
         const modal = document.querySelector("[data-paid-confirm-modal]");

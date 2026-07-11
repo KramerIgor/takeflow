@@ -1,6 +1,73 @@
 // Shared prompt reference UI helpers.
 export const DEFAULT_REFERENCE_FILE_LIMIT = 9;
 
+function padTimestampPart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function clipboardTimestamp(date) {
+  return [
+    date.getFullYear(),
+    padTimestampPart(date.getMonth() + 1),
+    padTimestampPart(date.getDate())
+  ].join("") + "-" + [
+    padTimestampPart(date.getHours()),
+    padTimestampPart(date.getMinutes()),
+    padTimestampPart(date.getSeconds())
+  ].join("");
+}
+
+function clipboardExtension(file) {
+  const type = String(file && file.type || "").toLowerCase();
+  const extensions = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "audio/mpeg": "mp3",
+    "audio/wav": "wav",
+    "audio/ogg": "ogg"
+  };
+  return extensions[type] || "bin";
+}
+
+function normalizeClipboardFile(file, index, timestamp) {
+  const originalName = String(file && file.name || "").trim();
+  const genericName = !originalName || /^(image|clipboard|blob)(\.[a-z0-9]+)?$/i.test(originalName);
+  if (!genericName || typeof File !== "function") {
+    return file;
+  }
+
+  const suffix = index > 0 ? "-" + (index + 1) : "";
+  const filename = "screenshot-" + timestamp + suffix + "." + clipboardExtension(file);
+  return new File([file], filename, {
+    type: file.type,
+    lastModified: file.lastModified || Date.now()
+  });
+}
+
+export function referenceFilesFromClipboard(event) {
+  const clipboard = event && event.clipboardData;
+  if (!clipboard) {
+    return [];
+  }
+
+  const itemFiles = Array.from(clipboard.items || [])
+    .filter(function (item) {
+      return item.kind === "file";
+    })
+    .map(function (item) {
+      return item.getAsFile();
+    })
+    .filter(Boolean);
+  const files = itemFiles.length ? itemFiles : Array.from(clipboard.files || []);
+  const timestamp = clipboardTimestamp(new Date());
+  return files.map(function (file, index) {
+    return normalizeClipboardFile(file, index, timestamp);
+  });
+}
+
 export function referenceLimitForForm(form) {
   const capabilities = (window.seedanceConfig && window.seedanceConfig.modelCapabilities) || {};
   const modelValue = form && form.elements && form.elements.model

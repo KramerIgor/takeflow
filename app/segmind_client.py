@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from app.settings import SEGMIND_API_BASE, SEGMIND_API_KEY, SEGMIND_MODEL
+from app import settings
 
 
 class SegmindConfigError(RuntimeError):
@@ -31,6 +31,52 @@ class SegmindResponse:
     url: str
     data: Any
     text_preview: str
+    headers: dict[str, str] | None = None
+
+
+def extract_seed_from_response(response: SegmindResponse | None) -> int | None:
+    if response is None:
+        return None
+
+    for key, value in (getattr(response, "headers", None) or {}).items():
+        if "seed" not in key.lower():
+            continue
+        try:
+            seed = int(str(value).strip())
+        except (TypeError, ValueError):
+            continue
+        if seed >= 0:
+            return seed
+
+    def walk(value: Any, parent_key: str = "") -> int | None:
+        if isinstance(value, dict):
+            preferred = ("actual_seed", "seed", "random_seed", "generated_seed")
+            for key in preferred:
+                if key in value:
+                    found = walk(value[key], key)
+                    if found is not None:
+                        return found
+            for key, nested in value.items():
+                found = walk(nested, str(key))
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for nested in value:
+                found = walk(nested, parent_key)
+                if found is not None:
+                    return found
+        elif isinstance(value, bool):
+            return None
+        elif "seed" in parent_key.lower():
+            try:
+                seed = int(value)
+            except (TypeError, ValueError):
+                return None
+            if seed >= 0:
+                return seed
+        return None
+
+    return walk(getattr(response, "data", None))
 
 
 class SegmindClient:
@@ -41,9 +87,9 @@ class SegmindClient:
         model: str | None = None,
         timeout: float = 60.0,
     ) -> None:
-        self.api_key = api_key if api_key is not None else SEGMIND_API_KEY
-        self.api_base = (api_base if api_base is not None else SEGMIND_API_BASE).rstrip("/")
-        self.model = model if model is not None else SEGMIND_MODEL
+        self.api_key = api_key if api_key is not None else settings.get_segmind_api_key()
+        self.api_base = (api_base if api_base is not None else settings.get_segmind_api_base()).rstrip("/")
+        self.model = model if model is not None else settings.SEGMIND_MODEL
         self.timeout = timeout
 
         if not self.api_key:
@@ -69,6 +115,7 @@ class SegmindClient:
             url=str(response.url),
             data=data,
             text_preview=text_preview,
+            headers=dict(response.headers),
         )
 
     def _request(self, method: str, path: str, json_payload: dict[str, Any] | None = None) -> SegmindResponse:
@@ -233,6 +280,10 @@ class SegmindClient:
                 return value.upper()
 
         return None
+
+    @staticmethod
+    def extract_seed(response: SegmindResponse | None) -> int | None:
+        return extract_seed_from_response(response)
 
     @staticmethod
     def build_seedance_payload(

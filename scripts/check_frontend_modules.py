@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = (PROJECT_ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
 ENTRY = PROJECT_ROOT / "app" / "static" / "app.js"
 ENTRY_TEXT = ENTRY.read_text(encoding="utf-8")
+MAIN_TEXT = (PROJECT_ROOT / "app" / "main.py").read_text(encoding="utf-8")
 STATIC_JS = read_static_js(PROJECT_ROOT)
 
 
@@ -25,9 +26,11 @@ def main() -> int:
         "auto-refresh.js",
         "i18n.js",
         "navigation.js",
+        "flash-notice.js",
         "history-pagination.js",
         "history-rail.js",
         "model-constraints.js",
+        "seed-control.js",
         "output-root.js",
         "reference-ui.js",
         "updates.js",
@@ -40,17 +43,28 @@ def main() -> int:
     module_paths = static_js_files(PROJECT_ROOT)
     module_names = [path.name for path in module_paths]
     imports_resolve = True
+    import_versions = []
     for path in module_paths:
         text = path.read_text(encoding="utf-8")
-        for spec in re.findall(r'import\s+["\'](.+?)["\'];', text):
+        specs = re.findall(r'import(?:\s+[\s\S]*?\s+from)?\s+["\'](.+?)["\']\s*;', text)
+        for spec in specs:
             module_path = spec.split("?", 1)[0]
             if spec.startswith(".") and not (path.parent / module_path).resolve().exists():
                 imports_resolve = False
+            if "?v=" in spec:
+                import_versions.append(spec.split("?v=", 1)[1])
+
+    asset_version_match = re.search(r'^STATIC_ASSET_VERSION\s*=\s*["\']([^"\']+)["\']', MAIN_TEXT, re.MULTILINE)
+    asset_version = asset_version_match.group(1) if asset_version_match else ""
+    entry_versions = re.findall(r'\?v=([^"\']+)', ENTRY_TEXT)
 
     checks = [
         expect("module_script_tag", '<script type="module" src="/static/app.js?v={{ static_asset_version }}"></script>' in TEMPLATE),
         expect("old_defer_script_absent", '<script src="/static/app.js" defer></script>' not in TEMPLATE),
         expect("module_import_cache_bust_present", all("?v=" in line for line in ENTRY_TEXT.splitlines() if line.startswith("import "))),
+        expect("entry_versions_match_server", bool(asset_version) and bool(entry_versions) and all(version == asset_version for version in entry_versions)),
+        expect("nested_import_versions_match_server", bool(import_versions) and all(version == asset_version for version in import_versions)),
+        expect("frontend_assets_disable_stale_cache", 'response.headers["Cache-Control"] = "no-store"' in MAIN_TEXT),
         expect(
             "entrypoint_is_import_map",
             all(f'./js/{name}' in ENTRY_TEXT for name in expected_modules if name != "reference-ui.js"),
@@ -58,10 +72,10 @@ def main() -> int:
         expect("expected_modules_exist", all((PROJECT_ROOT / "app" / "static" / "js" / name).exists() for name in expected_modules)),
         expect("text_to_audio_module_removed", "text-to-audio.js" not in ENTRY_TEXT and not (PROJECT_ROOT / "app" / "static" / "js" / "text-to-audio.js").exists()),
         expect("imports_resolve", imports_resolve),
-        expect("entrypoint_stays_small", ENTRY.stat().st_size < 1000),
+        expect("entrypoint_stays_small", ENTRY.stat().st_size < 1500),
         expect("seedance_config_handoff_present", "window.seedanceConfig" in TEMPLATE and "modelCapabilities" in TEMPLATE),
         expect("static_asset_version_present", "static_asset_version" in TEMPLATE),
-        expect("public_i18n_hook_present", "window.seedanceSetLanguage = setLanguage" in STATIC_JS),
+        expect("public_i18n_hook_present", "window.seedanceSetLanguage = setLanguage" in STATIC_JS and "window.seedanceLocalizeRoot = localizeRoot" in STATIC_JS),
         expect("public_tab_hook_present", "window.seedanceActivateTab = activateTab" in STATIC_JS),
         expect("public_pagination_hook_present", "window.seedanceInitHistoryPagination" in STATIC_JS),
         expect("public_model_hook_present", "window.seedanceSyncModelOptions" in STATIC_JS),

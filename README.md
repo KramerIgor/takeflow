@@ -40,7 +40,9 @@ Open the DMG and drag **Takeflow** to **Applications**. Python, Homebrew, Node.j
 - Supports image, video and audio reference attachments in the UI.
 - Provides model-aware duration, resolution and reference limits.
 - Shows a local pre-submit cost estimate where public pricing is available.
-- Refreshes active history automatically without clearing the prompt and shows estimated generation progress.
+- Refreshes only active history cards without clearing the prompt, moving the caret or reloading completed video players.
+- Uses an explicit Random seed control and records the actual seed when Segmind returns it.
+- Applies API key and API base changes immediately; model choice is remembered on the generation forms.
 - Supports Russian and English UI.
 - Requires explicit confirmation before paid generation.
 
@@ -83,6 +85,7 @@ Safe diagnostics:
 & '.\.venv\Scripts\python.exe' -m compileall app scripts takeflow_launcher.py
 & '.\.venv\Scripts\python.exe' -u scripts\check_takeflow_release.py
 & '.\.venv\Scripts\python.exe' -u scripts\check_release_readiness.py
+& '.\.venv\Scripts\python.exe' -u scripts\check_product_backlog_pass.py
 ~~~
 
 These checks use dry-runs and synthetic data. They must not submit paid generation requests.

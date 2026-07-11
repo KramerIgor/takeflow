@@ -122,7 +122,7 @@
             <select name="model">
               {% for item in model_choices %}
                 <option value="{{ item.id }}" {% if item.id == default_model %}selected{% endif %}>
-                  {{ item.label }} — {{ item.note }}
+                  {{ item.label }}
                 </option>
               {% endfor %}
             </select>
@@ -155,15 +155,20 @@
             </select>
           </label>
 
-          <label>
-            <span data-i18n="field_seed">Seed</span>
-            <input type="number" name="seed" value="-1">
-          </label>
+          <div class="form-field seed-field">
+            <div class="seed-control-row">
+              <label class="inline-check seed-random-toggle">
+                <input type="checkbox" name="random_seed" value="1" data-random-seed checked>
+                <span data-i18n="random_seed">Random seed</span>
+              </label>
+              <input type="number" name="seed" value="-1" data-fixed-seed-input aria-label="Seed" hidden>
+            </div>
+          </div>
         </div>
 
         <div class="checks">
           <label>
-            <input type="checkbox" name="generate_audio" value="1">
+            <input type="checkbox" name="generate_audio" value="1" checked>
             <span data-i18n="field_generate_audio">Generate audio</span>
           </label>
 
@@ -214,7 +219,15 @@
     {% endmacro %}
 
     {% macro compact_history_card(item, history_kind="single", row_class="") %}
-      <article class="single-history-card compact-history-card {% if history_kind == 'queue' %}queue-history-card{% endif %} {{ row_class }}" data-history-item>
+      {% set history_task_id = item.id if history_kind == 'queue' else item.task_id %}
+      {% set history_status = item.status|string|lower %}
+      <article
+        class="single-history-card compact-history-card {% if history_kind == 'queue' %}queue-history-card{% endif %} {{ row_class }}"
+        data-history-item
+        data-history-kind="{{ history_kind }}"
+        {% if history_task_id %}data-history-task-id="{{ history_task_id }}"{% endif %}
+        data-history-auto-refresh="{{ 'true' if history_status in ['queued', 'processing', 'running'] else 'false' }}"
+      >
         <div class="history-video-box">
           {% if item.output_preview_url %}
             <video src="{{ item.output_preview_url }}" controls preload="metadata"></video>
@@ -269,21 +282,48 @@
             </div>
           {% endif %}
 
+          {% set status_value = item.status|string|lower %}
+          {% set queued_like = status_value in ["queued", "paused", "draft", "pending"] %}
+          {% set processing_like = status_value in ["processing", "running"] %}
+          {% set failed_like = status_value in ["failed", "recoverable"] %}
           <div class="actions history-actions compact-history-actions">
             {% if item.output_path %}
               <a class="path-link open-path-link" href="#" data-open-path="{{ item.output_path }}" data-i18n="open_video">Open video</a>
-            {% else %}
+            {% elif processing_like %}
               <button type="button" class="secondary-button" disabled data-i18n="open_video">Open video</button>
             {% endif %}
-            <button type="button" class="secondary-button history-edit-button" data-i18n="edit_prompt">Edit prompt</button>
-            {% set status_value = item.status|string|lower %}
-            {% set queued_like = status_value in ["queued", "paused", "draft", "pending"] %}
-            {% set processing_like = status_value in ["processing", "running"] %}
+            {% if failed_like %}
+              {% if item.request_id and history_task_id %}
+                <form method="post" action="/recover-task/{{ history_task_id }}" class="inline-action-form">
+                  <button type="submit" class="secondary-button" data-i18n="check_failed_result">Check result</button>
+                </form>
+              {% elif history_kind == "queue" and history_task_id %}
+                <form method="post" action="/retry-task/{{ history_task_id }}" class="inline-action-form">
+                  <button type="submit" class="secondary-button" data-i18n="add_to_queue_again" data-confirm-key="confirm_retry_queue">Add to queue again</button>
+                </form>
+              {% else %}
+                <button type="button" class="paid-button history-regenerate-button" data-i18n="send_again">Send again</button>
+              {% endif %}
+              {% if history_task_id %}
+                <form method="post" action="/delete-failed-task/{{ history_task_id }}" class="inline-action-form">
+                  <button type="submit" class="small-action-button danger-button" data-i18n="delete_error_record" data-confirm-key="confirm_delete_error_record">Delete record</button>
+                </form>
+              {% endif %}
+            {% elif history_kind == "queue" and queued_like %}
+              {% if item.can_edit_in_queue %}
+                <button type="button" class="secondary-button queue-edit-button" data-i18n="edit_in_queue">Edit in queue</button>
+              {% endif %}
+              {% if item.can_remove_from_queue %}
+                <form method="post" action="/remove-queued-task/{{ item.id }}" class="inline-action-form">
+                  <button type="submit" class="small-action-button danger-button" data-i18n="remove_from_queue" data-confirm-key="confirm_remove_queue">Remove from queue</button>
+                </form>
+              {% endif %}
+            {% elif not processing_like %}
+              <button type="button" class="secondary-button history-edit-button" data-i18n="edit_prompt">Edit prompt</button>
+            {% endif %}
             {% if processing_like %}
               <button type="button" class="paid-button" disabled data-i18n="regenerate">Regenerate</button>
-            {% elif history_kind == "queue" and queued_like %}
-              <button type="button" class="paid-button history-regenerate-button" data-i18n="run_as_single_paid">Run as Single (paid)</button>
-            {% else %}
+            {% elif not failed_like and not (history_kind == "queue" and queued_like) %}
               <button type="button" class="paid-button history-regenerate-button" data-i18n="regenerate">Regenerate</button>
             {% endif %}
           </div>
@@ -321,7 +361,7 @@
                   <div><span class="label" data-i18n="field_duration">Duration</span><span>{{ item.params.duration }}s</span></div>
                   <div><span class="label" data-i18n="field_resolution">Resolution</span><span>{{ item.params.resolution }}</span></div>
                   <div><span class="label" data-i18n="field_aspect_ratio">Aspect ratio</span><span>{{ item.params.aspect_ratio }}</span></div>
-                  <div><span class="label" data-i18n="field_seed">Seed</span><span>{{ item.params.seed }}</span></div>
+                  <div><span class="label" data-i18n="field_seed">Seed</span><span{% if item.random_seed and item.actual_seed is none %} data-i18n="random_seed_value"{% endif %}>{{ item.seed_display }}{% if item.random_seed and item.actual_seed is not none %} <span data-i18n="random_seed_suffix">(random)</span>{% endif %}</span></div>
                   <div><span class="label" data-i18n="field_created">Created</span><span {% if not item.created_at %}data-i18n="unknown"{% endif %}>{{ item.created_at or "unknown" }}</span></div>
                   <div><span class="label" data-i18n="field_completed">Completed</span><span {% if not item.completed_at %}data-i18n="unknown"{% endif %}>{{ item.completed_at or "unknown" }}</span></div>
                   <div><span class="label" data-i18n="queue_item">Queue item</span><span>{{ item.queue_item_label }}</span></div>
@@ -330,7 +370,7 @@
                   <div><span class="label" data-i18n="field_duration">Duration</span><span>{{ item.duration }}s</span></div>
                   <div><span class="label" data-i18n="field_resolution">Resolution</span><span>{{ item.resolution }}</span></div>
                   <div><span class="label" data-i18n="field_aspect_ratio">Aspect ratio</span><span>{{ item.aspect_ratio }}</span></div>
-                  <div><span class="label" data-i18n="field_seed">Seed</span><span>{{ item.seed }}</span></div>
+                  <div><span class="label" data-i18n="field_seed">Seed</span><span{% if item.random_seed and item.actual_seed is none %} data-i18n="random_seed_value"{% endif %}>{{ item.seed_display }}{% if item.random_seed and item.actual_seed is not none %} <span data-i18n="random_seed_suffix">(random)</span>{% endif %}</span></div>
                   <div><span class="label" data-i18n="field_created">Created</span><span {% if not item.created_at %}data-i18n="unknown"{% endif %}>{{ item.created_at or "unknown" }}</span></div>
                   <div><span class="label" data-i18n="field_completed">Completed</span><span {% if not item.completed_at %}data-i18n="unknown"{% endif %}>{{ item.completed_at or "unknown" }}</span></div>
                 {% endif %}
@@ -339,7 +379,7 @@
               {% if item.cost_label %}
                 <div class="history-path">
                   <span class="label" data-i18n="field_cost">Cost</span>
-                  <span class="mono">{{ item.cost_label }}</span>
+                  <span class="mono">{{ item.cost_value_label or item.cost_label }}{% if item.cost_is_estimated %} <span data-i18n="estimated_short">estimated</span>{% endif %}</span>
                 </div>
               {% endif %}
 
@@ -354,20 +394,7 @@
               {% endif %}
 
               {% if item.error %}
-                <div class="queue-error">{{ item.error }}</div>
-              {% endif %}
-
-              {% if history_kind == "queue" and (item.can_edit_in_queue or item.can_remove_from_queue) %}
-                <div class="actions history-actions">
-                  {% if item.can_edit_in_queue %}
-                    <button type="button" class="secondary-button queue-edit-button" data-i18n="edit_in_queue">Edit in queue</button>
-                  {% endif %}
-                  {% if item.can_remove_from_queue %}
-                    <form method="post" action="/remove-queued-task/{{ item.id }}" class="inline-action-form">
-                    <button type="submit" class="small-action-button danger-button" data-i18n="remove_from_queue" data-confirm-key="confirm_remove_queue">Remove from queue</button>
-                    </form>
-                  {% endif %}
-                </div>
+                <div class="queue-error"{% if item.error_display_key %} data-i18n="{{ item.error_display_key }}"{% endif %}>{{ item.error_display or item.error }}</div>
               {% endif %}
 
               <details class="queue-debug">
@@ -414,6 +441,12 @@
                       <div class="mono">{{ item.run_dir_windows_path or item.run_dir }}</div>
                     </div>
                   {% endif %}
+                  {% if item.error %}
+                    <div>
+                      <span class="label" data-i18n="technical_error">Technical error</span>
+                      <div class="mono">{{ item.error }}</div>
+                    </div>
+                  {% endif %}
                 </div>
               </details>
             </div>
@@ -425,12 +458,15 @@
                 "name": item.display_name,
                 "prompt": item.prompt,
                 "model": item.model,
-                "duration": item.params.duration,
-                "resolution": item.params.resolution,
-                "aspect_ratio": item.params.aspect_ratio,
-                "seed": item.params.seed,
-                "generate_audio": item.params.generate_audio,
-                "return_last_frame": item.params.return_last_frame,
+                "duration": item.params.get("duration"),
+                "resolution": item.params.get("resolution"),
+                "aspect_ratio": item.params.get("aspect_ratio"),
+                "seed": item.params.get("seed", -1),
+                "requested_seed": item.requested_seed,
+                "random_seed": item.random_seed,
+                "actual_seed": item.actual_seed,
+                "generate_audio": item.params.get("generate_audio", true),
+                "return_last_frame": item.params.get("return_last_frame", false),
                 "refs": item.refs_view,
                 "queue_task_id": item.id,
                 "can_edit_in_queue": item.can_edit_in_queue
@@ -444,6 +480,9 @@
                 "resolution": item.resolution,
                 "aspect_ratio": item.aspect_ratio,
                 "seed": item.seed,
+                "requested_seed": item.requested_seed,
+                "random_seed": item.random_seed,
+                "actual_seed": item.actual_seed,
                 "generate_audio": item.generate_audio,
                 "return_last_frame": item.return_last_frame,
                 "refs": item.refs
@@ -509,10 +548,16 @@
 
     {% if message %}
       <section
-        class="notice"
-        {% if message_key %}data-flash-message="{{ message_key }}" data-flash-params='{{ message_params | tojson }}'{% endif %}
+        class="notice flash-notice"
+        data-flash-notice
+        role="status"
+        aria-live="polite"
       >
-        {{ message }}
+        <span {% if message_key %}data-flash-message="{{ message_key }}" data-flash-params='{{ message_params | tojson }}'{% endif %}>{{ message }}</span>
+        <button type="button" class="flash-notice-dismiss" data-flash-dismiss>
+          <span aria-hidden="true">&times;</span>
+          <span class="sr-only" data-i18n="close_notification">Close notification</span>
+        </button>
       </section>
     {% endif %}
 
@@ -574,17 +619,9 @@
                 <span data-i18n="api_base_label">API base</span>
                 <input type="text" name="segmind_api_base" value="{{ api_base }}" autocomplete="off">
               </label>
-              <label>
-                <span data-i18n="default_model_label">Default model</span>
-                <select name="default_model">
-                  {% for item in model_choices %}
-                    <option value="{{ item.id }}" {% if item.id == default_model %}selected{% endif %}>{{ item.label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
               <div class="actions">
                 <button type="submit" data-i18n="save_api">Save API settings</button>
-                <span class="hint" data-i18n="api_restart_hint">Restart the GUI after changing key or model.</span>
+                <span class="hint" data-i18n="api_applies_immediately">Changes apply immediately.</span>
               </div>
             </form>
           </section>
@@ -694,11 +731,6 @@
           <h2 data-i18n="history_title">History</h2>
           <button type="button" class="secondary-button refresh-history-button" data-refresh-history="single" data-i18n="refresh_history">Refresh</button>
         </div>
-        <p class="muted" data-i18n="history_hint">Single Generation runs appear here, including processing and failed runs.</p>
-        {% if has_processing_single_generation %}
-          <div class="notice compact-notice" data-i18n="processing_notice">Generation is in progress. History updates automatically.</div>
-        {% endif %}
-
         <div class="single-history-rail-content history-rail-content" data-history-rail-content="single">
         {% if single_history %}
           <div class="single-history-grid history-rail-grid" data-history-list="single">
@@ -773,7 +805,7 @@
       {% endif %}
 
 
-      <details class="advanced-panel">
+      <details class="advanced-panel" data-batch-import-panel>
         <summary data-i18n="batch_csv_import">Batch CSV Import</summary>
         <section class="panel compact-inner-panel">
         <p class="muted" data-i18n="batch_csv_hint">
@@ -860,7 +892,7 @@
         </section>
       </details>
 
-      <section class="panel">
+      <section class="panel" data-queue-controls-panel>
       <h2 data-i18n="queue_controls">Queue Controls</h2>
       <p class="muted" data-i18n="queue_controls_hint">Run queued tasks when you are ready. Paid actions always ask for confirmation.</p>
 
@@ -868,12 +900,12 @@
         <div class="queue-run-summary">
           <div>
             <span class="label" data-i18n="queue_progress">Queue progress</span>
-            <strong>{{ queue_overall_summary.progress_label }}</strong>
+            <strong>{{ queue_overall_summary.completed_count }}/{{ queue_overall_summary.total_count }} <span data-i18n="status_completed">completed</span></strong>
           </div>
           <div>
             <span class="label" data-i18n="estimated_total_cost">Estimated total cost</span>
             {% if queue_overall_summary.total_cost_label %}
-              <strong>{{ queue_overall_summary.total_cost_label }}</strong>
+              <strong>{{ queue_overall_summary.cost_value_label }}{% if queue_overall_summary.cost_is_estimated %} <span data-i18n="estimated_short">estimated</span>{% endif %}</strong>
             {% else %}
               <strong data-i18n="unknown">unknown</strong>
             {% endif %}
@@ -950,21 +982,6 @@
         </div>
       </form>
 
-      <details class="advanced-run">
-        <summary data-i18n="run_next_summary">Run only next item</summary>
-        <form method="post" action="/start-queue-once" class="paid-action-block">
-          <div class="actions">
-            <button
-              class="paid-button"
-              type="submit"
-              data-confirm-key="confirm_start_next_item"
-            >
-              <span data-i18n="start_next_paid">Start Next Item (paid)</span>
-            </button>
-            <span class="hint" data-i18n="start_next_hint">Processes only the next queued task.</span>
-          </div>
-        </form>
-      </details>
       </section>
 
       {% if last_queue_run %}
@@ -1053,9 +1070,12 @@
                     <section class="queue-batch-section" data-history-batch-section>
                       <h3 class="queue-batch-title">
                         <span data-queue-label-en="{{ batch.queue_label }}" data-queue-label-ru="{{ batch.queue_label_ru }}">{{ batch.queue_label }}</span>
-                        <span class="queue-batch-progress">{{ batch.summary.progress_label }}</span>
+                        <span class="queue-batch-progress">
+                          <span>{{ batch.summary.completed_count }}/{{ batch.summary.total_count }}</span>
+                          {% if batch.summary.processing_count %}<span data-i18n="status_processing">processing</span>{% elif batch.summary.queued_count %}<span data-i18n="status_queued">queued</span>{% else %}<span data-i18n="status_completed">completed</span>{% endif %}
+                        </span>
                         {% if batch.summary.total_cost_label %}
-                          <span class="queue-batch-cost">{{ batch.summary.total_cost_label }}</span>
+                          <span class="queue-batch-cost"><span>{{ batch.summary.cost_value_label }}</span>{% if batch.summary.cost_is_estimated %}<span data-i18n="estimated_short">estimated</span>{% endif %}</span>
                         {% endif %}
                       </h3>
                       <div class="single-history-grid">
@@ -1096,7 +1116,8 @@
     window.seedanceConfig = {
       autoRefreshEnabled: {{ (has_processing_single_generation or has_active_queue_work) | tojson }},
       refreshIntervalMs: {{ (refresh_seconds * 1000) | tojson }},
-      historyRefreshIntervalMs: 5000,
+      historyRefreshIntervalMs: 2000,
+      historyInitialRefreshDelayMs: 500,
       modelCapabilities: {{ model_capabilities | tojson }},
       initialTab: {{ active_tab | tojson }},
       shutdownToken: {{ shutdown_token | tojson }},

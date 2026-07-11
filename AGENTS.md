@@ -133,7 +133,7 @@ Current product behavior:
 - CSV batch import supports optional `continuation_group` and `continuation_index`; rows in the same group become dependent queue tasks using `last_frame_as_reference`.
 - Queue loop supports up to 50 tasks per paid run, enough for longer chained shot lists.
 - History, Queue, cleanup/recovery and Start Queue Loop are scoped to the active project.
-- Queue controls expose progress and estimated total queue cost; Start Full Queue launches the paid queue loop in a background thread and Start Next Item is the single-step action.
+- Queue controls expose progress and estimated total queue cost; Start Full Queue launches the paid queue loop in a background thread. The single-step backend route is compatibility-only and is not user-facing.
 
 
 ## Current storage structure
@@ -226,7 +226,7 @@ Current model capability rules:
 - `seedance-2.0-mini`: supports `480p`, `720p`; GUI allows durations 4, 5, 6, 8, 10, 12 and 15 seconds.
 - `seedance-2.0-fast`: legacy GUI option; keep it limited to `480p` and `720p` unless official Segmind docs for this endpoint are rechecked.
 - Do not show or submit `4k` for Mini or Fast.
-- Reference file limits are model-aware. Current Seedance 2.0 Base, Mini and Fast options allow 9 references; future models can set another `reference_file_limit`. Keep the prompt UI, form posts and CSV validation aligned.
+- Reference file limits are model-aware. Current Seedance 2.0 Pro, Fast and Mini options allow 9 references; future models can set another `reference_file_limit`. Keep the prompt UI, form posts and CSV validation aligned.
 - Keep model-aware validation in sync across Single Generation, Queue, CSV import, History edit/regenerate, reference limits and cost estimates.
 
 Continuation should use the saved last_frame.png as one of the next task reference_images. It is not the default first_frame_url workflow.
@@ -267,7 +267,6 @@ ffmpeg is installed but fallback only. Main last-frame path is API response vide
 
 Parked items:
 
-- Parallel queues.
 - Cost limits.
 
 ## Stage 9 batch import
@@ -429,14 +428,22 @@ Current UI cleanup scope:
 
 - Drag-and-drop reference files are available on Single Generation and Queue forms.
 - Accept image, video, and audio reference files in GUI/storage/history.
-- Show attached references inside the prompt editor as compact chips/cards with image thumbnail or media badge, filename, and remove button.
+- Show attached references inside the prompt editor as compact visual cards with thumbnail/media badge and a hover/focus remove control.
 - Replace Episode/Scene in Single Generation with one optional `Name` field. If empty, backend should generate a safe name such as `generation00001-22062026`.
-- A separate `History` tab shows one-off Single Generation tasks/runs only, not queue/batch/continuation tasks.
-- In History, show video preview/player, name, prompt, attached references, model, duration, resolution, aspect ratio, seed, output filename/path, times if available, and status/error if failed.
+- Single and Queue each have a compact right-side history rail; there is no separate History tab.
+- In History details, show prompt, attached references, model, duration, resolution, aspect ratio, requested/actual seed, output filename/path, times if available, and status/error if failed.
 - Add `Edit prompt` and `Regenerate`.
 - `Regenerate` must show exactly: `This will start a paid generation. Continue?`
 - Add `@reference` prompt tokens through the prompt-local dropdown. The visible editor is rich/contenteditable, but the hidden `textarea[name=prompt]` remains the backend source of truth and must preserve tokens as `<@filename>`.
 - If video/audio references are not supported by the Segmind API client, store them in GUI/storage/history and show `Stored in history; not sent to API yet`; leave video/audio API submission parked.
+- Automatic polling must patch only active cards by task id. Never replace the whole rail during automatic refresh or dispatch a global language change, because that resets prompt caret and media state.
+- Queued/paused/draft items expose Edit in queue and Remove from queue outside Details. Completed/failed queue history may offer Edit prompt into Single Generation.
+- Batch CSV Import is an advanced disclosure inside Queue Controls. Do not restore the user-facing Start Next Item block.
+- API key/base changes apply at runtime. Do not restore a default-model field in Projects; model choice is remembered on generation forms.
+- Clipboard file paste is part of the reference contract. Image/video/audio clipboard files must be attached through the same model-aware reference pipeline; never allow pasted HTML images to remain inside the contenteditable prompt.
+- Parallel workers must atomically claim queued tasks as processing before external submission so the UI and competing schedulers cannot treat dispatched tasks as still queued.
+- Keep user-facing error explanations localized and concise. Preserve the original exception only under Debug / files.
+- Failed-task retry must avoid ambiguous duplicate paid requests: recover an existing request id first; direct resend/add-to-queue is appropriate when no request id was obtained. Deleting a failed record must never delete output or run files.
 
 Additional Codex local skills live in `.agents/skills`:
 

@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
         "resolution",
         "aspect_ratio",
         "seed",
+        "random_seed",
         "generate_audio",
         "return_last_frame"
       ];

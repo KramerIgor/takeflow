@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-from app.db import get_task, update_task_fields, utc_now
+from app.db import get_task, update_task_fields, update_task_params, utc_now
 from app.queue_worker import _download_file, _extract_output_url, _save_api_last_frame_if_present, _to_windows_path, _write_status_json
-from app.segmind_client import SegmindClient
+from app.segmind_client import SegmindClient, extract_seed_from_response
 from app.settings import OUTPUT_DIR
 
 
@@ -109,12 +109,41 @@ def recover_task_by_existing_request(task_id: int) -> dict:
         if isinstance(metrics, dict):
             inference_time = metrics.get("inference_time")
 
+        params = dict(task.get("params") or {})
+        requested_seed = int(params.get("requested_seed", params.get("seed", -1)))
+        is_random_seed = bool(params.get("random_seed", requested_seed < 0))
+        actual_seed = next(
+            (
+                value
+                for value in (
+                    extract_seed_from_response(result_response),
+                    extract_seed_from_response(status_response),
+                )
+                if value is not None
+            ),
+            None,
+        )
+        if actual_seed is None and not is_random_seed:
+            actual_seed = requested_seed
+        params.update(
+            {
+                "seed": -1 if is_random_seed else requested_seed,
+                "requested_seed": -1 if is_random_seed else requested_seed,
+                "random_seed": is_random_seed,
+                "actual_seed": actual_seed,
+            }
+        )
+        update_task_params(task_id, params)
+
         summary = {
             "task_id": task_id,
             "request_id": request_id,
             "model": task.get("model"),
             "status": "completed_recovered",
             "inference_time": inference_time,
+            "requested_seed": params["requested_seed"],
+            "random_seed": is_random_seed,
+            "actual_seed": actual_seed,
             "video_path": str(video_path),
             "video_size_bytes": video_path.stat().st_size,
             "recovered_at": utc_now(),

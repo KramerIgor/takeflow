@@ -69,7 +69,7 @@ def main():
             expect("technical_id_debug_only", "Technical task ID" in html),
             expect("technical_id_not_in_collapsed_subtitle", "technical id #" not in html),
             expect("status_display_layer_present", 'data-status-value="queued"' in html),
-            expect("queued_item_paid_action_explicit", "Run as Single (paid)" in html),
+            expect("queued_item_stays_in_queue", "Run as Single (paid)" not in html and "Edit in queue" in html),
             expect("queue_edit_button", "queue-edit-button" in html),
             expect("remove_queue_route", "/remove-queued-task/" in html),
             expect("update_queue_route_js", "/update-queued-task/" in APP_JS),

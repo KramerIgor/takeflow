@@ -10,8 +10,8 @@ from typing import Any
 
 import httpx
 
-from app.db import get_next_queued_task, get_task, list_tasks, update_task_fields, utc_now
-from app.segmind_client import SegmindClient
+from app.db import claim_task_for_processing, get_next_queued_task, get_task, list_tasks, update_task_fields, update_task_params, utc_now
+from app.segmind_client import SegmindClient, extract_seed_from_response
 from app.settings import OUTPUT_DIR
 from app.storage import allocate_inbox_take_dir, allocate_take_paths
 from app.costing import build_cost_info
@@ -477,7 +477,7 @@ def process_next_queued_task_dry_run(*, project_name: str | None = None, project
     }
 
 
-def process_queued_task_real_by_id(task_id: int) -> dict:
+def process_queued_task_real_by_id(task_id: int, allow_processing: bool = False) -> dict:
     task = get_task(task_id)
 
     if task is None:
@@ -488,16 +488,38 @@ def process_queued_task_real_by_id(task_id: int) -> dict:
             "task_id": task_id,
         }
 
-    if task.get("status") != "queued":
-        _log(f"real worker: task #{task_id} is not queued | status={task.get('status')}")
+    status = task.get("status")
+    claimed_for_parallel_run = bool(
+        allow_processing
+        and status == "processing"
+        and not task.get("request_id")
+        and not task.get("output_path")
+    )
+    if status != "queued" and not claimed_for_parallel_run:
+        _log(f"real worker: task #{task_id} is not available | status={status}")
         return {
             "processed": False,
-            "reason": "task_not_queued",
+            "reason": "task_not_available",
             "task_id": task_id,
-            "status": task.get("status"),
+            "status": status,
         }
 
     return _process_queued_task_real(task)
+
+
+def _process_claimed_parallel_task(task_id: int) -> dict:
+    try:
+        return process_queued_task_real_by_id(task_id, True)
+    except Exception as exc:
+        error_text = f"{type(exc).__name__}: {exc}"
+        update_task_fields(task_id, status="failed", error=error_text)
+        _log(f"parallel worker task #{task_id}: failed before normal error handling | error={error_text}")
+        return {
+            "processed": True,
+            "task_id": task_id,
+            "status": "failed",
+            "error": error_text,
+        }
 
 
 def process_next_queued_task_real(*, project_name: str | None = None, project_dir: str | None = None) -> dict:
@@ -519,7 +541,7 @@ def _process_queued_task_real(task: dict) -> dict:
     refs = task["refs"]
 
     started = time.time()
-    started_at = utc_now()
+    started_at = task.get("started_at") or utc_now()
 
     model = task["model"]
 
@@ -607,6 +629,17 @@ def _process_queued_task_real(task: dict) -> dict:
             refs_for_save.append(saved_item)
             uploaded_reference_urls.append(uploaded_url)
 
+        requested_seed = int(params.get("requested_seed", params.get("seed", -1)))
+        is_random_seed = bool(params.get("random_seed", requested_seed < 0))
+        params.update(
+            {
+                "seed": -1 if is_random_seed else requested_seed,
+                "requested_seed": -1 if is_random_seed else requested_seed,
+                "random_seed": is_random_seed,
+                "actual_seed": params.get("actual_seed") if is_random_seed else requested_seed,
+            }
+        )
+
         payload = client.build_seedance_payload(
             prompt=task["prompt"],
             reference_images=uploaded_reference_urls,
@@ -616,7 +649,7 @@ def _process_queued_task_real(task: dict) -> dict:
             resolution=str(params.get("resolution", "480p")),
             aspect_ratio=str(params.get("aspect_ratio", "16:9")),
             generate_audio=bool(params.get("generate_audio", False)),
-            seed=int(params.get("seed", -1)),
+            seed=int(params["seed"]),
             return_last_frame=bool(params.get("return_last_frame", False)),
         )
 
@@ -668,6 +701,7 @@ def _process_queued_task_real(task: dict) -> dict:
         transient_404_count = 0
         transient_network_error_count = 0
         max_transient_network_errors = 30
+        status_response = None
 
         while True:
             elapsed_now = int(time.time() - started)
@@ -752,6 +786,35 @@ def _process_queued_task_real(task: dict) -> dict:
         if not result_response.ok:
             raise RuntimeError(f"Result fetch failed with status {result_response.status_code}: {result_response.text_preview}")
 
+        actual_seed = next(
+            (
+                value
+                for value in (
+                    extract_seed_from_response(result_response),
+                    extract_seed_from_response(status_response),
+                    extract_seed_from_response(submit_response),
+                )
+                if value is not None
+            ),
+            None,
+        )
+        if actual_seed is None and not is_random_seed:
+            actual_seed = requested_seed
+        params["actual_seed"] = actual_seed
+        params_for_save.update(
+            {
+                "seed": params["seed"],
+                "requested_seed": params["requested_seed"],
+                "random_seed": is_random_seed,
+                "actual_seed": actual_seed,
+            }
+        )
+        update_task_params(task_id, params)
+        (run_dir / "params.json").write_text(
+            json.dumps(params_for_save, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
         video_url = _extract_output_url(result_response.data)
         if not video_url:
             raise RuntimeError("No video URL found in result response.")
@@ -777,6 +840,9 @@ def _process_queued_task_real(task: dict) -> dict:
             "status": "completed",
             "elapsed_total_seconds": elapsed_total_seconds,
             "inference_time": inference_time,
+            "requested_seed": params["requested_seed"],
+            "random_seed": is_random_seed,
+            "actual_seed": actual_seed,
             "video_path": str(video_path),
             "cost_info": build_cost_info(result_response.data, model=model, duration=params.get("duration"), resolution=params.get("resolution"), aspect_ratio=params.get("aspect_ratio"), refs=refs),
             "technical_output_path": None,
@@ -1015,10 +1081,17 @@ def _process_queue_loop_parallel(
             stopped_reason = "waiting_for_dependencies" if remaining else "no_queued_tasks"
             break
 
-        task_ids = [int(task["id"]) for task in ready]
+        claim_started_at = utc_now()
+        task_ids = [
+            int(task["id"])
+            for task in ready
+            if claim_task_for_processing(int(task["id"]), started_at=claim_started_at)
+        ]
+        if not task_ids:
+            continue
         _log(f"parallel wave start | task_ids={task_ids}")
         with ThreadPoolExecutor(max_workers=len(task_ids), thread_name_prefix="takeflow-queue") as executor:
-            wave_results = list(executor.map(process_queued_task_real_by_id, task_ids))
+            wave_results = list(executor.map(_process_claimed_parallel_task, task_ids))
         results.extend(wave_results)
 
         wave_failed = False

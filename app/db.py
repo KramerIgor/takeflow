@@ -245,6 +245,25 @@ def get_next_queued_task(
     return None
 
 
+def claim_task_for_processing(task_id: int, *, started_at: str | None = None) -> bool:
+    now = started_at or utc_now()
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE generation_tasks
+            SET status = 'processing',
+                started_at = ?,
+                error = NULL,
+                updated_at = ?
+            WHERE id = ?
+              AND status = 'queued'
+            """,
+            (now, now, task_id),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
+
+
 def update_task_status(task_id: int, status: str, error: str | None = None) -> None:
     if status not in ALLOWED_STATUSES:
         raise ValueError(f"Invalid task status: {status}")
@@ -341,5 +360,18 @@ def update_task_payload(
                 now,
                 task_id,
             ),
+        )
+        conn.commit()
+
+
+def update_task_params(task_id: int, params: dict[str, Any]) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE generation_tasks
+            SET params_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (json.dumps(params, ensure_ascii=False), utc_now(), task_id),
         )
         conn.commit()

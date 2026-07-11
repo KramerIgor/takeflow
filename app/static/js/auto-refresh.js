@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   const intervalMs = config.historyRefreshIntervalMs || config.refreshIntervalMs || 5000;
+  const initialDelayMs = config.historyInitialRefreshDelayMs || Math.min(intervalMs, 600);
   let refreshRunning = false;
 
   function railNeedsRefresh(historyKind) {
@@ -14,7 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   async function refreshActiveHistory() {
-    if (refreshRunning || typeof window.seedanceRefreshHistoryRail !== "function") {
+    if (refreshRunning || typeof window.seedanceRefreshProcessingHistoryCards !== "function") {
       window.setTimeout(refreshActiveHistory, intervalMs);
       return;
     }
@@ -28,10 +29,10 @@ document.addEventListener("DOMContentLoaded", function () {
     refreshRunning = true;
     try {
       if (singleActive) {
-        await window.seedanceRefreshHistoryRail("single", { automatic: true });
+        await window.seedanceRefreshProcessingHistoryCards("single");
       }
       if (queueActive) {
-        await window.seedanceRefreshHistoryRail("queue", { automatic: true });
+        await window.seedanceRefreshProcessingHistoryCards("queue");
       }
     } finally {
       refreshRunning = false;
@@ -42,5 +43,5 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  window.setTimeout(refreshActiveHistory, intervalMs);
+  window.setTimeout(refreshActiveHistory, initialDelayMs);
 });

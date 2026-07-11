@@ -279,8 +279,8 @@ Current cost and balance behavior:
 - Do not use private dashboard endpoints for balance without explicit user approval.
 - Top bar shows balance state under the EN/RU language switch; current value is `Unavailable` because no official balance endpoint is known.
 - Queue history cards are implemented and mirror Single Generation history cards.
-- Queue item `Edit prompt` fills Single Generation with that one item's prompt/settings/refs.
-- Queue item `Regenerate` confirms the paid action and submits only that one item through Single Generation; it does not rerun the whole queue or batch. Queued-like queue cards label that action as `Run as Single (paid)` to avoid implying that the whole queue will run.
+- Queued-like items expose `Edit in queue` and `Remove from queue` without opening Details. They do not route to Single Generation before completion.
+- Completed or failed queue history can use `Edit prompt` and `Regenerate` in Single Generation; this does not rerun the whole queue or batch.
 - Queue display numbering is derived without schema migration: groups use `queue_group_id`, `batch_import_id`, `continuation_chain_id`, or legacy task fallback. UI labels are `Queue #N` and `N-M`.
 - Frontend JS is split out of `app/templates/index.html`; the template should stay focused on Jinja-rendered structure, macros and `window.seedanceConfig`.
 - `app/static/app.js` is now a small ES module entrypoint. Focused modules live in `app/static/js/`: auto-refresh, i18n, navigation, history pagination, history rail refresh/path opening, model constraints and live cost estimates, shared prompt reference UI helpers, Single Generation references/edit/regenerate/paid confirmation, Queue references/editing and form preference preservation.
@@ -292,8 +292,8 @@ Current Segmind model support:
 - `seedance-2.0-mini`: `480p`, `720p`; duration 4, 5, 6, 8, 10, 12, 15 seconds.
 - `seedance-2.0-fast`: legacy GUI option, kept to `480p` and `720p`.
 - UI selects and CSV validation are model-aware. `4k` is only valid for `seedance-2.0`.
-- Reference limits are model-aware. Current Seedance 2.0 Base, Mini and Fast options allow 9 references; future models can set another `reference_file_limit`. The limit is enforced in the prompt UI, normal form posts and CSV validation.
-- Cost estimates include official public pricing for current Seedance 2.0 Base, Mini and Fast options; unknown combinations intentionally do not show an estimate.
+- Reference limits are model-aware. Current Seedance 2.0 Pro, Fast and Mini options allow 9 references; future models can set another `reference_file_limit`. The limit is enforced in the prompt UI, normal form posts and CSV validation.
+- Cost estimates include official public pricing for current Seedance 2.0 Pro, Fast and Mini options; unknown combinations intentionally do not show an estimate.
 
 
 ## Next step
@@ -345,7 +345,6 @@ first_frame_url is parked as a possible optional future mode only.
 
 ## Parked items
 
-- Parallel queues.
 - Cost limits.
 
 ## macOS productization pass — 2026-07-10
@@ -379,3 +378,24 @@ first_frame_url is parked as a possible optional future mode only.
 - Completed videos replace processing cards automatically as soon as the local task status changes.
 - Quit now handles backend errors, attempts to close the browser tab, and falls back to a finite safe-to-close screen instead of staying on “Shutting down”.
 - Product-level diagnostics are `scripts/check_takeflow_release.py` and `scripts/check_ui_quality.py`; old Stage 11 script names remain compatibility wrappers only.
+
+## Unreleased local backlog pass — 2026-07-11
+
+This pass is intentionally local and has not been published or released yet.
+
+- Model selectors use the short labels `Seedance 2.0 Pro`, `Seedance 2.0 Fast` and `Seedance 2.0 Mini`; internal API ids are unchanged.
+- Projects/API settings contain only API key and API base. Saving applies both to new clients immediately and invalidates the balance cache; no GUI restart is required.
+- Model choice remains a generation-form preference and is no longer presented as an API default.
+- Fresh Single and Queue forms default to Generate audio enabled and Random seed enabled. Fixed seed input appears only after Random seed is disabled.
+- Tasks store requested/random/actual seed metadata. Workers and recovery inspect Segmind response headers and JSON for the actual seed and persist it when available.
+- Editing a random-seed history item keeps Random seed enabled; disabling it restores the captured actual seed, or a safe fallback for legacy tasks.
+- Automatic history polling fetches fresh state but replaces only queued/processing cards by task id. Prompt caret, form state, rail scroll and completed video elements remain untouched.
+- Queued-like cards expose Edit in queue and Remove from queue as primary visible actions. Completed/failed queue history uses Edit prompt for Single Generation.
+- Batch CSV Import moves under Queue Controls at runtime as a collapsed advanced section. The user-facing Start Next Item block is removed; the internal route remains for compatibility checks.
+- Action feedback is a compact dismissible notification that auto-hides after six seconds and disappears on tab change.
+- Desktop (1440px) and mobile (390px) visual QA passed without horizontal overflow. Paid confirmation was inspected but never accepted.
+- New focused regression: `scripts/check_product_backlog_pass.py`.
+- Pasting a clipboard screenshot into either prompt editor attaches it as a reference instead of embedding browser HTML in the prompt. Generic clipboard names are normalized to timestamped screenshot filenames.
+- Parallel scheduler waves atomically claim selected queued tasks as `processing` before worker submission. Active-card polling starts after 500ms and remains targeted, so progress appears promptly without repainting completed cards.
+- Known provider/network failures use localized display messages while preserving raw exceptions under Debug / files.
+- Failed Single items without a request id offer Send again; failed Queue items offer Add to queue again. Items with a request id prefer result recovery. Failed records can be removed without deleting disk files.

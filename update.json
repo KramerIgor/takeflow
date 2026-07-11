@@ -1,24 +1,24 @@
 {
-  "version": "0.1.3beta",
-  "display_version": "0.1.3 beta",
-  "release_tag": "v0.1.3-beta",
-  "release_url": "https://github.com/KramerIgor/takeflow/releases/tag/v0.1.3-beta",
-  "installer_url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.3-beta/TakeflowSetup-0.1.3beta.exe",
-  "sha256": "68f80ed888d8f3fe34b2fa0641f67bc54abce06056f9032144b74aa7c422fc0a",
+  "version": "0.1.4beta",
+  "display_version": "0.1.4 beta",
+  "release_tag": "v0.1.4-beta",
+  "release_url": "https://github.com/KramerIgor/takeflow/releases/tag/v0.1.4-beta",
+  "installer_url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.4-beta/TakeflowSetup-0.1.4beta.exe",
+  "sha256": "50ac9b2ad1156133327316ed881f0cdc47b0eb8f61d3e9aeea73f3e454608d85",
   "assets": {
     "windows-x64": {
-      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.3-beta/TakeflowSetup-0.1.3beta.exe",
-      "sha256": "68f80ed888d8f3fe34b2fa0641f67bc54abce06056f9032144b74aa7c422fc0a",
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.4-beta/TakeflowSetup-0.1.4beta.exe",
+      "sha256": "50ac9b2ad1156133327316ed881f0cdc47b0eb8f61d3e9aeea73f3e454608d85",
       "format": "exe"
     },
     "macos-arm64": {
-      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.3-beta/Takeflow-0.1.3beta-macOS-AppleSilicon.dmg",
-      "sha256": "9691f2e70712daf3ac5999b0740a661a6a31252276d3f7e0b7d4e0f4bd788a55",
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.4-beta/Takeflow-0.1.4beta-macOS-AppleSilicon.dmg",
+      "sha256": "bbf9189b00a08243b49b35e5100ce62b97ece62eb94681804a315610c8acde5e",
       "format": "dmg"
     },
     "macos-x64": {
-      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.3-beta/Takeflow-0.1.3beta-macOS-Intel.dmg",
-      "sha256": "29be9539117671f65714b810ef005122197cf86186082a3389cd56653dc7144e",
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.4-beta/Takeflow-0.1.4beta-macOS-Intel.dmg",
+      "sha256": "e8c99f68c6e2d4788c1a3d0d5f585f83eb6fe98c0c84659d725b7309e0c97f2f",
       "format": "dmg"
     }
   }

@@ -38,8 +38,10 @@ def launcher_log_dir() -> Path:
 
 def default_output_dir() -> Path:
     if IS_MACOS:
-        return Path.home() / "Movies" / "Takeflow" / "Example_project"
-    return Path.home() / "Videos" / "Takeflow" / "Example_project"
+        return Path.home() / "Movies" / "Takeflow" / "MyFirstProject"
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "outputs" / "MyFirstProject"
+    return PROJECT_ROOT / "outputs" / "MyFirstProject"
 
 
 DATA_DIR = app_support_dir()

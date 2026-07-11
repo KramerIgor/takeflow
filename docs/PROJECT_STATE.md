@@ -361,3 +361,13 @@ first_frame_url is parked as a possible optional future mode only.
 - `.github/workflows/build-macos.yml` builds and smoke-tests both architectures on real GitHub macOS runners before optional release upload.
 - The macOS educational beta is not Developer ID signed or notarized. Users follow Apple's one-time Privacy & Security → Open Anyway flow; global Gatekeeper bypass instructions are intentionally not provided.
 - GitHub onboarding is bilingual: `README.md` / `README_RU.md`, Windows user guides and separate full macOS EN/RU guides cross-link each other.
+
+## Takeflow 0.1.2 beta — 2026-07-11
+
+- Windows first run defaults to `outputs/MyFirstProject` next to `Takeflow.exe`; existing configured roots are not migrated.
+- Fixed `/add-to-queue` returning HTTP 500 after successfully persisting a task.
+- Product subtitle is `Local AI-video studio` / `Локальная AI-video студия`.
+- Output-root and queue-add notices use the selected UI language.
+- Queue runs can be sequential or parallel with a user-selected concurrency of 1–10 and a maximum of 50 tasks per run.
+- Parallel waves include only independent or dependency-ready tasks. Continuation children wait until the parent completes.
+- Segmind publishes RPM limits but no stable per-model concurrency contract; Takeflow therefore keeps concurrency explicit and defaults to sequential mode.

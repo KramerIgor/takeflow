@@ -10,8 +10,8 @@ Product tagline: Takeflow — локальная AI-video студия для с
 
 Current public release target:
 
-    Version: 0.1.1beta
-    Tag: v0.1.1-beta
+    Version: 0.1.2beta
+    Tag: v0.1.2-beta
 
 Windows packaging uses PyInstaller plus Inno Setup. The installer must be per-user writable, must not include `.env`, and must not require Python, Node, npm or Git on the target machine. End-user updates use `update.json` plus a GitHub Release installer asset; do not implement `git pull` as an installed-app updater.
 

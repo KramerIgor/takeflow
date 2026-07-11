@@ -6,11 +6,11 @@
 
 Takeflow is a local Windows and macOS desktop interface for organizing projects and generating video through the Segmind Seedance API. The application opens in the browser and keeps project files on the user's computer.
 
-Current release: **0.1.1 beta** (v0.1.1-beta).
+Current release: **0.1.2 beta** (v0.1.2-beta).
 
 ## Download for Windows
 
-Download the latest installer from [GitHub Releases](https://github.com/KramerIgor/takeflow/releases/latest):
+Download the latest installer from [Takeflow 0.1.2 beta](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.2-beta):
 
 1. Download TakeflowSetup-*.exe.
 2. Run the installer.
@@ -35,6 +35,7 @@ Open the DMG and drag **Takeflow** to **Applications**. Python, Homebrew, Node.j
 - Manages independent video projects and output folders.
 - Runs single Seedance generations with a compact history rail.
 - Builds and processes generation queues.
+- Runs queues sequentially or in bounded parallel waves (1-10 independent jobs); continuation chains preserve parent-first order.
 - Imports queue tasks from CSV.
 - Supports image, video and audio reference attachments in the UI.
 - Provides model-aware duration, resolution and reference limits.
@@ -49,7 +50,7 @@ Takeflow itself is local, but video generation uses the external Segmind API and
 
 1. Open **Projects**.
 2. Enter a Segmind API key.
-3. Select a writable output root.
+3. Keep the default `outputs/MyFirstProject` folder next to the Windows app, or select another writable output root.
 4. Create or select a project.
 5. Open **Single Generation** or **Queue**.
 
@@ -98,7 +99,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File '.\scripts\build_windows_ins
 Output:
 
 ~~~text
-dist\installer\TakeflowSetup-0.1.1beta.exe
+dist\installer\TakeflowSetup-0.1.2beta.exe
 ~~~
 
 The build script also updates update.json with the release URLs and SHA-256 checksum.

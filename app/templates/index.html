@@ -439,7 +439,7 @@
       <div>
         <h1>{{ app_title }} <span class="app-version">v{{ app_version_display }}</span></h1>
         <p class="muted" data-i18n="app_subtitle">{{ app_subtitle }}</p>
-        <p class="creator-attribution"><span data-i18n="created_by">Created by:</span> {{ app_creator }}</p>
+        <p class="creator-attribution"><span data-i18n="created_by">Created by:</span> <span data-i18n="creator_name">{{ app_creator }}</span></p>
       </div>
       <div class="top-actions">
         <div class="language-switch" aria-label="Language">
@@ -481,7 +481,10 @@
     </section>
 
     {% if message %}
-      <section class="notice">
+      <section
+        class="notice"
+        {% if message_key %}data-flash-message="{{ message_key }}" data-flash-params='{{ message_params | tojson }}'{% endif %}
+      >
         {{ message }}
       </section>
     {% endif %}
@@ -892,8 +895,19 @@
       <form method="post" action="/start-queue-loop" class="queue-loop-form paid-action-block">
         <div class="grid small-grid">
           <label>
+            <span data-i18n="queue_run_mode">Run mode</span>
+            <select name="queue_mode" data-queue-run-mode>
+              <option value="sequential" data-i18n="queue_mode_sequential">Sequential</option>
+              <option value="parallel" data-i18n="queue_mode_parallel">Parallel</option>
+            </select>
+          </label>
+          <label>
             <span data-i18n="max_tasks_run">Max tasks in this run</span>
             <input type="number" name="max_tasks" value="50" min="1" max="50">
+          </label>
+          <label>
+            <span data-i18n="max_concurrency">Parallel jobs</span>
+            <input type="number" name="max_concurrency" value="3" min="1" max="10" data-queue-max-concurrency>
           </label>
         </div>
 
@@ -905,7 +919,7 @@
           >
             <span data-i18n="start_full_queue_paid">Start Full Queue (paid)</span>
           </button>
-          <span class="hint" data-i18n="start_full_queue_hint">Runs queued tasks one by one in the background. Stops on first failure.</span>
+          <span class="hint" data-i18n="start_full_queue_hint">Sequential runs one task at a time. Parallel runs independent tasks together; continuation chains still wait for their parent.</span>
         </div>
       </form>
 

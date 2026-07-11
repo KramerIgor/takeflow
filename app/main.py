@@ -112,9 +112,9 @@ SINGLE_GENERATION_MODES = {"single_generation_paid", "single_generation_regenera
 
 
 APP_TITLE = "Takeflow"
-APP_SUBTITLE = "Local AI-video studio for scenes, takes, and queues"
-APP_CREATOR = "Игорь Олегович Крамер / IOKRAMER"
-STATIC_ASSET_VERSION = "20260710-release-status"
+APP_SUBTITLE = "Local AI-video studio"
+APP_CREATOR = "Igor Olegovich Kramer / IOKRAMER"
+STATIC_ASSET_VERSION = "20260711-v012"
 SHUTDOWN_TOKEN = secrets.token_urlsafe(32)
 UPDATE_MANAGER = UpdateManager(UPDATE_DIR)
 BALANCE_CACHE_SECONDS = 60
@@ -126,6 +126,8 @@ _queue_loop_state: dict[str, object] = {
     "project_name": None,
     "project_dir": None,
     "max_tasks": None,
+    "queue_mode": "sequential",
+    "max_concurrency": 1,
     "started_at": None,
     "finished_at": None,
     "result": None,
@@ -477,7 +479,14 @@ def queue_loop_is_running() -> bool:
     return bool(queue_loop_state_snapshot().get("active"))
 
 
-def mark_queue_loop_started(*, project_name: str, project_dir: str, max_tasks: int) -> None:
+def mark_queue_loop_started(
+    *,
+    project_name: str,
+    project_dir: str,
+    max_tasks: int,
+    queue_mode: str = "sequential",
+    max_concurrency: int = 1,
+) -> None:
     with _queue_loop_state_lock:
         _queue_loop_state.update(
             {
@@ -485,6 +494,8 @@ def mark_queue_loop_started(*, project_name: str, project_dir: str, max_tasks: i
                 "project_name": project_name,
                 "project_dir": project_dir,
                 "max_tasks": max_tasks,
+                "queue_mode": queue_mode,
+                "max_concurrency": max_concurrency,
                 "started_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
                 "finished_at": None,
                 "result": None,
@@ -1018,6 +1029,8 @@ def redirect_home(message: str | None = None) -> RedirectResponse:
 def base_context(
     request: Request,
     message: str | None = None,
+    message_key: str | None = None,
+    message_params: dict | None = None,
     last_draft: dict | None = None,
     last_run: dict | None = None,
     last_queue_add: dict | None = None,
@@ -1072,6 +1085,8 @@ def base_context(
         "resolutions": RESOLUTIONS,
         "aspect_ratios": ASPECT_RATIOS,
         "message": message,
+        "message_key": message_key,
+        "message_params": message_params or {},
         "last_draft": last_draft,
         "last_run": last_run,
         "last_queue_add": last_queue_add,
@@ -1838,6 +1853,8 @@ def update_api_settings_endpoint(
 
 @app.post("/update-output-root", response_class=HTMLResponse)
 def update_output_root_endpoint(request: Request, output_root_path: str = Form("")):
+    message_key = None
+    message_params = None
     try:
         output_root = normalize_output_root_input(output_root_path)
         output_root.mkdir(parents=True, exist_ok=True)
@@ -1850,12 +1867,14 @@ def update_output_root_endpoint(request: Request, output_root_path: str = Form("
             f"Output root changed to '{output_root}'. "
             f"Active project is now '{state['active_project_name']}' in the new root."
         )
+        message_key = "flash_output_root_changed"
+        message_params = {"root": str(output_root), "project": state["active_project_name"]}
     except Exception as exc:
         message = f"Output root was not changed: {type(exc).__name__}: {exc}"
 
     return templates.TemplateResponse(
         "index.html",
-        base_context(request, message=message),
+        base_context(request, message=message, message_key=message_key, message_params=message_params),
     )
 
 
@@ -1935,7 +1954,8 @@ async def add_to_queue(
     resolution = coerce_resolution_for_model(model, resolution)
     aspect_ratio = coerce_aspect_ratio_for_model(model, aspect_ratio)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    queue_dir = projects_module.get_active_project_dir() / "queue_tasks" / f"queued_{timestamp}"
+    task_project_dir = projects_module.get_active_project_dir()
+    queue_dir = task_project_dir / "queue_tasks" / f"queued_{timestamp}"
     refs_dir = queue_dir / "refs"
 
     saved_refs = safe_existing_reference_refs(existing_reference_paths, existing_reference_metadata)
@@ -2005,6 +2025,8 @@ async def add_to_queue(
         base_context(
             request,
             message=f"Task #{task_id} added to queue. No paid generation was started.",
+            message_key="flash_queue_task_added",
+            message_params={"id": task_id},
             last_queue_add=last_queue_add,
         ),
     )
@@ -2764,11 +2786,19 @@ def recover_task(task_id: int, request: Request):
     )
 
 
-def run_queue_loop_background(*, project_filter: dict, max_tasks: int, stale_cleanup: dict, auto_recovery: dict) -> None:
+def run_queue_loop_background(
+    *,
+    project_filter: dict,
+    max_tasks: int,
+    max_concurrency: int,
+    stale_cleanup: dict,
+    auto_recovery: dict,
+) -> None:
     try:
         result = process_queue_loop(
             dry_run=False,
             max_tasks=max_tasks,
+            max_concurrency=max_concurrency,
             stop_on_failure=True,
             **project_filter,
         )
@@ -2807,12 +2837,17 @@ def resume_paused_queue(request: Request):
 def start_queue_loop(
     request: Request,
     max_tasks: int = Form(50),
+    queue_mode: str = Form("sequential"),
+    max_concurrency: int = Form(3),
 ):
     if max_tasks < 1:
         max_tasks = 1
 
     if max_tasks > 50:
         max_tasks = 50
+
+    queue_mode = "parallel" if queue_mode == "parallel" else "sequential"
+    max_concurrency = max(1, min(max_concurrency, 10)) if queue_mode == "parallel" else 1
 
     project_filter = active_project_task_filter()
     current_state = queue_loop_state_snapshot()
@@ -2827,6 +2862,8 @@ def start_queue_loop(
         project_name=project_filter["project_name"],
         project_dir=project_filter["project_dir"],
         max_tasks=max_tasks,
+        queue_mode=queue_mode,
+        max_concurrency=max_concurrency,
     )
 
     thread = threading.Thread(
@@ -2834,6 +2871,7 @@ def start_queue_loop(
         kwargs={
             "project_filter": project_filter,
             "max_tasks": max_tasks,
+            "max_concurrency": max_concurrency,
             "stale_cleanup": stale_cleanup,
             "auto_recovery": auto_recovery,
         },
@@ -2841,7 +2879,11 @@ def start_queue_loop(
     )
     thread.start()
 
-    message = f"Queue loop started in background for up to {max_tasks} task(s). This page refreshes automatically."
+    mode_label = "parallel" if queue_mode == "parallel" else "sequential"
+    message = (
+        f"Queue started in {mode_label} mode for up to {max_tasks} task(s) "
+        f"with concurrency {max_concurrency}. This page refreshes automatically."
+    )
 
     return redirect_home(message)
 

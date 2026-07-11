@@ -44,7 +44,7 @@ def main_run() -> int:
     retired_route = "n" + "ight-mode-preview"
 
     checks = [
-        assert_ok("header_is_product_facing", "Takeflow" in text and "Local AI-video studio for scenes, takes, and queues" in text and "Stage 11 baseline" not in text),
+        assert_ok("header_is_product_facing", "Takeflow" in text and "Local AI-video studio" in text and "for scenes, takes, and queues" not in text and "Stage 11 baseline" not in text),
         assert_ok("header_no_stage8_current_status", "Stage 8 - Last frame continuation" not in text),
         assert_ok("queue_keeps_batch_csv_import_advanced", "Batch CSV Import" in text),
         assert_ok("retired_queue_preview_removed", retired_copy not in text and retired_route not in text),

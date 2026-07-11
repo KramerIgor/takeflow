@@ -4,8 +4,11 @@ document.addEventListener("DOMContentLoaded", function () {
       const switchButtons = Array.from(document.querySelectorAll("[data-lang-option]"));
       const translations = {
         ru: {
-          app_subtitle: "Локальная AI-video студия для сцен, дублей и очередей",
-          created_by: "Создано:",
+          app_subtitle: "Локальная AI-video студия",
+          created_by: "Автор:",
+          creator_name: "Игорь Олегович Крамер / IOKRAMER",
+          flash_output_root_changed: "Корневая папка изменена на «{root}». Активный проект в новой папке: «{project}».",
+          flash_queue_task_added: "Задача №{id} добавлена в очередь. Платная генерация не запускалась.",
           shutdown_server: "Выход",
           shutting_down: "Выключение...",
           confirm_shutdown_server: "Выключить локальный сервер Takeflow?",
@@ -112,8 +115,12 @@ document.addEventListener("DOMContentLoaded", function () {
           resume_queue_hint: "Возвращает приостановленные задачи в очередь. Само по себе платную генерацию не запускает.",
           max_tasks_run: "Максимум задач за запуск",
           max_tasks: "Максимум задач",
+          queue_run_mode: "Режим запуска",
+          queue_mode_sequential: "Последовательно",
+          queue_mode_parallel: "Параллельно",
+          max_concurrency: "Одновременных задач",
           start_full_queue_paid: "Запустить всю очередь (платно)",
-          start_full_queue_hint: "Запускает задачи по одной в фоне. Останавливается на первой ошибке.",
+          start_full_queue_hint: "Последовательный режим запускает задачи по одной. Параллельный запускает независимые задачи вместе; цепочки продолжения всё равно ждут родительскую задачу.",
           run_next_summary: "Запустить только следующий элемент",
           start_next_paid: "Запустить следующий элемент (платно)",
           start_next_hint: "Обрабатывает только следующую задачу очереди.",
@@ -208,13 +215,21 @@ document.addEventListener("DOMContentLoaded", function () {
           confirm_delete_project: "Удалить папку проекта {name}? Это удалит файлы внутри этого проекта.",
           confirm_create_queued_tasks: "Будут созданы только задачи в очереди. Платная генерация не запустится. Продолжить?",
           confirm_stop_queue: "Остановить очередь после текущей задачи? Еще не начатые задачи будут приостановлены.",
-          confirm_start_full_queue: "Это запустит платные генерации Segmind для задач очереди одну за другой в фоне. Продолжить?",
+          confirm_start_full_queue: "Это запустит платные генерации Segmind в выбранном режиме очереди. Продолжить?",
           confirm_start_next_item: "Это запустит платную генерацию Segmind только для следующей задачи в очереди. Продолжить?",
           confirm_start_next_item: "Это запустит платную генерацию Segmind только для следующей задачи в очереди. Продолжить?"
         },
         en: {
-          app_subtitle: "Local AI-video studio for scenes, takes, and queues",
+          app_subtitle: "Local AI-video studio",
           created_by: "Created by:",
+          creator_name: "Igor Olegovich Kramer / IOKRAMER",
+          flash_output_root_changed: "Output root changed to “{root}”. Active project in the new root: “{project}”.",
+          flash_queue_task_added: "Task #{id} was added to the queue. No paid generation was started.",
+          queue_run_mode: "Run mode",
+          queue_mode_sequential: "Sequential",
+          queue_mode_parallel: "Parallel",
+          max_concurrency: "Parallel jobs",
+          start_full_queue_hint: "Sequential runs one task at a time. Parallel runs independent tasks together; continuation chains still wait for their parent.",
           shutdown_server: "Quit",
           shutting_down: "Shutting down...",
           confirm_shutdown_server: "Shut down the local Takeflow server?",
@@ -266,7 +281,7 @@ document.addEventListener("DOMContentLoaded", function () {
           confirm_delete_project: "Delete project folder {name}? This removes files inside that project.",
           confirm_create_queued_tasks: "This will create queued tasks only. No paid generation will start. Continue?",
           confirm_stop_queue: "Stop the queue after the current processing task? Not-started queued tasks will be paused.",
-          confirm_start_full_queue: "This will start paid Segmind generations for queued tasks one by one in the background. Continue?",
+          confirm_start_full_queue: "This will start paid Segmind generations in the selected queue mode. Continue?",
           confirm_start_next_item: "This will start a paid Segmind generation for only the next queued task. Continue?",
           estimated_generation_cost: "Estimated cost",
           cost_estimate_unavailable: "No estimate",
@@ -354,6 +369,15 @@ document.addEventListener("DOMContentLoaded", function () {
         }
         for (const node of document.querySelectorAll("[data-status-value]")) {
           node.textContent = statusLabel(node.dataset.statusValue, lang);
+        }
+        for (const node of document.querySelectorAll("[data-flash-message]")) {
+          let params = {};
+          try {
+            params = JSON.parse(node.dataset.flashParams || "{}");
+          } catch (_error) {
+            params = {};
+          }
+          node.textContent = interpolate(translate(node.dataset.flashMessage), params);
         }
         localStorage.setItem(storageKey, lang);
         document.dispatchEvent(new CustomEvent("seedance:language-changed", { detail: { lang: lang } }));

@@ -60,8 +60,8 @@ def main() -> int:
         download_status = client.get("/update-download/status")
 
     checks = [
-        expect("version_constant_ok", APP_VERSION == "0.1.1beta"),
-        expect("release_tag_ok", APP_RELEASE_TAG == "v0.1.1-beta"),
+        expect("version_constant_ok", APP_VERSION == "0.1.2beta"),
+        expect("release_tag_ok", APP_RELEASE_TAG == "v0.1.2-beta"),
         expect("version_display_in_header", f"v{APP_VERSION_DISPLAY}" in page.text),
         expect("version_in_health", health.json().get("version") == APP_VERSION),
         expect("shutdown_button_present", "data-shutdown-server" in page.text),
@@ -87,7 +87,7 @@ def main() -> int:
         expect("gitignore_excludes_update_downloads", "data/updates/" in gitignore and "*.part" in gitignore),
         expect("personal_project_identifier_absent", ("psai" + "lor") not in public_sources),
         expect("frontend_update_shutdown_modules", "updates.js" in app_js and "shutdown.js" in app_js),
-        expect("readme_mentions_installer", "Windows Installer" in readme and "GitHub Releases" in readme),
+        expect("readme_mentions_installer", "Windows Installer" in readme and "v0.1.2-beta" in readme and "TakeflowSetup-*.exe" in readme),
         expect("readme_language_switch", "[Русский](README_RU.md)" in readme and "[English](README.md)" in readme_ru),
         expect("russian_readme_complete", "Скачать для Windows" in readme_ru and "Скачать для macOS" in readme_ru and "Безопасность и приватность" in readme_ru),
         expect("user_guides_present", "Takeflow User Guide" in user_guide and "Руководство пользователя Takeflow" in user_guide_ru),

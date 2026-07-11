@@ -18,7 +18,7 @@ The installer is approximately 20 MB. The installed application is approximately
 
 ## Install
 
-1. Open the [Takeflow Releases page](https://github.com/KramerIgor/takeflow/releases/latest).
+1. Open the [Takeflow 0.1.2 beta release](https://github.com/KramerIgor/takeflow/releases/tag/v0.1.2-beta).
 2. Download TakeflowSetup-*.exe.
 3. Run the downloaded installer.
 4. Choose the installation folder.
@@ -46,7 +46,7 @@ Open **Projects / Проекты**.
 1. Paste your Segmind API key.
 2. Confirm the API base URL.
 3. Select the default Seedance model.
-4. Choose an output root using **Choose / Выбрать**.
+4. Keep the default `outputs/MyFirstProject` folder next to the installed app or choose another output root using **Choose / Выбрать**.
 5. Create or select a project folder.
 
 Takeflow does not move existing project folders when the output root changes.

@@ -1,14 +1,14 @@
 {
-  "version": "0.1.1beta",
-  "display_version": "0.1.1 beta",
-  "release_tag": "v0.1.1-beta",
-  "release_url": "https://github.com/KramerIgor/takeflow/releases/tag/v0.1.1-beta",
-  "installer_url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.1-beta/TakeflowSetup-0.1.1beta.exe",
-  "sha256": "cb5d779724e6d2376cbf645becba70e7a3887cdbdd21ea46ba2b7e47d1eef1a4",
+  "version": "0.1.2beta",
+  "display_version": "0.1.2 beta",
+  "release_tag": "v0.1.2-beta",
+  "release_url": "https://github.com/KramerIgor/takeflow/releases/tag/v0.1.2-beta",
+  "installer_url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.2-beta/TakeflowSetup-0.1.2beta.exe",
+  "sha256": "98b49a16b1bf68244e04a2d767a9b6bbeec0595bc72557377fa6851c41968ac7",
   "assets": {
     "windows-x64": {
-      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.1-beta/TakeflowSetup-0.1.1beta.exe",
-      "sha256": "cb5d779724e6d2376cbf645becba70e7a3887cdbdd21ea46ba2b7e47d1eef1a4",
+      "url": "https://github.com/KramerIgor/takeflow/releases/download/v0.1.2-beta/TakeflowSetup-0.1.2beta.exe",
+      "sha256": "98b49a16b1bf68244e04a2d767a9b6bbeec0595bc72557377fa6851c41968ac7",
       "format": "exe"
     },
     "macos-arm64": {

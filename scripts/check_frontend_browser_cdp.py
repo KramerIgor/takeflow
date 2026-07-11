@@ -12,6 +12,10 @@ import urllib.error
 import urllib.request
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAFE_OUTPUT_ROOT = PROJECT_ROOT / "tmp_test_output"
 VISUAL_OUT = SAFE_OUTPUT_ROOT / "visual_qa_cdp"
@@ -189,6 +193,8 @@ async function run() {
       lang: document.documentElement.lang,
       placeholder: document.querySelector('.queue-generation-form [data-queue-prompt-rich-editor]')?.dataset.placeholder,
       queueTitle: document.querySelector('.queue-history-rail h2')?.textContent.trim(),
+      subtitle: document.querySelector('[data-i18n="app_subtitle"]')?.textContent.trim(),
+      creator: document.querySelector('.creator-attribution')?.textContent.trim(),
       addLabel: document.querySelector('.single-generation-form [data-trigger-reference-picker] [data-i18n="add_files_short"]')?.textContent.trim(),
       addButtonOverflow: (() => {
         const button = document.querySelector('.single-generation-form [data-trigger-reference-picker]');
@@ -200,7 +206,9 @@ async function run() {
     const en = {
       lang: document.documentElement.lang,
       placeholder: document.querySelector('.queue-generation-form [data-queue-prompt-rich-editor]')?.dataset.placeholder,
-      queueTitle: document.querySelector('.queue-history-rail h2')?.textContent.trim()
+      queueTitle: document.querySelector('.queue-history-rail h2')?.textContent.trim(),
+      subtitle: document.querySelector('[data-i18n="app_subtitle"]')?.textContent.trim(),
+      creator: document.querySelector('.creator-attribution')?.textContent.trim()
     };
     return {
       ru,
@@ -403,8 +411,25 @@ async function run() {
     };
   })()`);
 
+  const queueControls = await evalJs(`(() => {
+    window.seedanceActivateTab("queue-workflow");
+    window.seedanceSetLanguage("en");
+    const mode = document.querySelector("[data-queue-run-mode]");
+    const concurrency = document.querySelector("[data-queue-max-concurrency]");
+    const sequentialDisabled = concurrency?.disabled === true;
+    mode.value = "parallel";
+    mode.dispatchEvent(new Event("change", { bubbles: true }));
+    return {
+      modeValue: mode?.value,
+      sequentialDisabled,
+      parallelEnabled: concurrency?.disabled === false,
+      max: concurrency?.max,
+      noOverflow: document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    };
+  })()`);
+
   await cdp.send("Page.captureScreenshot", { format: "png" }).then((shot) => {
-    fs.writeFileSync(path.join(outDir, "desktop.png"), Buffer.from(shot.data, "base64"));
+    fs.writeFileSync(path.join(outDir, "queue-controls-desktop.png"), Buffer.from(shot.data, "base64"));
   });
 
   await cdp.send("Emulation.setDeviceMetricsOverride", {
@@ -437,6 +462,7 @@ async function run() {
     desktop_no_overflow: !initial.overflow,
     tabs_work: Object.values(tabs).every(Boolean),
     ru_en_placeholders: i18n.ru.placeholder === "Опишите видео-сцену..." && i18n.en.placeholder === "Describe the video scene...",
+    bilingual_brand_copy: i18n.ru.subtitle === "Локальная AI-video студия" && i18n.en.subtitle === "Local AI-video studio" && i18n.ru.creator.includes("Игорь Олегович Крамер") && i18n.en.creator.includes("Igor Olegovich Kramer"),
     no_old_copy: !i18n.oldAnimePlaceholder && !i18n.oldQueueHint,
     ru_add_tile_fits: i18n.ru.addLabel === "Файл" && !i18n.ru.addButtonOverflow,
     cost_estimate_live: costEstimate.expectedFastEstimate && costEstimate.expectedFastLongEstimate && costEstimate.expectedFastSquareEstimate && costEstimate.note.length > 0,
@@ -451,11 +477,12 @@ async function run() {
     reference_tokens_highlighted: dragdrop.singlePromptText.includes("<@browser-single-ref.png>") && dragdrop.inlineRefText.includes("browser-single-ref.png") && !dragdrop.bottomTokenPreviewExists,
     pagination_and_details: history.single.pagerVisible && history.queue.pagerVisible && history.single.detailsOpen && history.queue.detailsOpen && history.single.indicator === "2 / 2" && history.queue.indicator === "2 / 2",
     paid_modal_safe: modal.visible && modal.closedByEscape && modal.title === "This will start a paid generation. Continue?",
+    queue_modes_work: queueControls.modeValue === "parallel" && queueControls.sequentialDisabled && queueControls.parallelEnabled && queueControls.max === "10" && queueControls.noOverflow,
     mobile_no_overflow: !mobile.overflow,
     no_console_errors: errors.length === 0
   };
   const ok = Object.values(checks).every(Boolean);
-  const result = { checks, failedChecks: Object.entries(checks).filter(([, value]) => !value).map(([key]) => key), initial, tabs, i18n, costEstimate, textToAudioRemoved, refresh, dragdrop, referenceLimit, history, modal, mobile, errors, screenshots: outDir, new_paid_submit_started: false };
+  const result = { checks, failedChecks: Object.entries(checks).filter(([, value]) => !value).map(([key]) => key), initial, tabs, i18n, costEstimate, textToAudioRemoved, refresh, dragdrop, referenceLimit, history, modal, queueControls, mobile, errors, screenshots: outDir, new_paid_submit_started: false };
   fs.writeFileSync(path.join(outDir, "browser_check_result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
   cdp.close();
@@ -553,6 +580,8 @@ def main() -> int:
             cwd=PROJECT_ROOT,
             env=cdp_env,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )

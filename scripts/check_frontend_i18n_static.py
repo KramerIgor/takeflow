@@ -88,6 +88,9 @@ def main() -> int:
         expect("queue_empty_state_short", 'data-i18n="no_queue_history">No queued tasks yet.' in TEMPLATE),
         expect("no_forbidden_ui_copy", not any(item in CLIENT_TEXT for item in forbidden)),
         expect("status_display_layer_present", "data-status-value" in TEMPLATE and "statusLabel(" in APP_JS),
+        expect("short_bilingual_subtitle", 'app_subtitle: "Local AI-video studio"' in APP_JS and 'app_subtitle: "Локальная AI-video студия"' in APP_JS),
+        expect("localized_flash_messages", "data-flash-message" in TEMPLATE and "flash_output_root_changed:" in ru_block and "flash_output_root_changed:" in en_block and "flash_queue_task_added:" in ru_block and "flash_queue_task_added:" in en_block),
+        expect("queue_modes_localized", all(f"{key}:" in ru_block and f"{key}:" in en_block for key in ["queue_run_mode", "queue_mode_sequential", "queue_mode_parallel", "max_concurrency"])),
         expect("no_missing_ru_i18n_keys", not missing_ru),
         expect("dynamic_en_fallbacks_present", all(f"{key}:" in en_block for key in dynamic_en_keys)),
         expect("confirm_keys_on_paid_buttons", all(key in TEMPLATE for key in [

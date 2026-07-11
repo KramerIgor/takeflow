@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import json
 import shutil
+import threading
 import time
 from typing import Any
 
 import httpx
 
-from app.db import get_next_queued_task, get_task, update_task_fields, utc_now
+from app.db import get_next_queued_task, get_task, list_tasks, update_task_fields, utc_now
 from app.segmind_client import SegmindClient
 from app.settings import OUTPUT_DIR
 from app.storage import allocate_inbox_take_dir, allocate_take_paths
 from app.costing import build_cost_info
 from app.last_frame import extract_last_frame_candidate
+
+
+_take_allocation_lock = threading.Lock()
 
 
 def _take_paths_for_task(params: dict) -> dict:
@@ -401,8 +406,9 @@ def process_next_queued_task_dry_run(*, project_name: str | None = None, project
 
     refs = continuation_preflight.get("refs") or refs
 
-    run_dir = _run_dir_for_task(params)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    with _take_allocation_lock:
+        run_dir = _run_dir_for_task(params)
+        run_dir.mkdir(parents=True, exist_ok=True)
     expected_video_path = _final_video_path_for_run_dir(run_dir)
 
     update_task_fields(
@@ -534,8 +540,9 @@ def _process_queued_task_real(task: dict) -> dict:
         }
 
     refs = continuation_preflight.get("refs") or refs
-    run_dir = _run_dir_for_task(params)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    with _take_allocation_lock:
+        run_dir = _run_dir_for_task(params)
+        run_dir.mkdir(parents=True, exist_ok=True)
 
     _log(
         f"task #{task_id}: start real generation | "
@@ -883,9 +890,20 @@ def process_queue_loop(
     stop_on_failure: bool = True,
     project_name: str | None = None,
     project_dir: str | None = None,
+    max_concurrency: int = 1,
 ) -> dict:
     if max_tasks < 1:
         max_tasks = 1
+    max_concurrency = max(1, min(int(max_concurrency), 10))
+
+    if not dry_run and max_concurrency > 1:
+        return _process_queue_loop_parallel(
+            max_tasks=max_tasks,
+            max_concurrency=max_concurrency,
+            stop_on_failure=stop_on_failure,
+            project_name=project_name,
+            project_dir=project_dir,
+        )
 
     _log(
         f"queue loop start | dry_run={dry_run} "
@@ -930,6 +948,100 @@ def process_queue_loop(
     return {
         "dry_run": dry_run,
         "max_tasks": max_tasks,
+        "max_concurrency": 1,
+        "processed_count": processed_count,
+        "completed_count": completed,
+        "failed_count": failed,
+        "stopped_reason": stopped_reason,
+        "results": results,
+    }
+
+
+def _ready_parallel_tasks(
+    *,
+    limit: int,
+    project_name: str | None,
+    project_dir: str | None,
+) -> list[dict]:
+    queued = [
+        task
+        for task in list_tasks(limit=10000, project_name=project_name, project_dir=project_dir)
+        if task.get("status") == "queued"
+    ]
+    ready: list[dict] = []
+    for task in sorted(queued, key=lambda item: int(item.get("id") or 0)):
+        parent_task_id = (task.get("params") or {}).get("parent_task_id")
+        if parent_task_id is not None:
+            parent = get_task(int(parent_task_id))
+            if not parent or parent.get("status") != "completed":
+                continue
+        ready.append(task)
+        if len(ready) >= limit:
+            break
+    return ready
+
+
+def _process_queue_loop_parallel(
+    *,
+    max_tasks: int,
+    max_concurrency: int,
+    stop_on_failure: bool,
+    project_name: str | None,
+    project_dir: str | None,
+) -> dict:
+    _log(
+        f"parallel queue loop start | max_tasks={max_tasks} "
+        f"max_concurrency={max_concurrency} stop_on_failure={stop_on_failure}"
+    )
+    results: list[dict] = []
+    completed = 0
+    failed = 0
+    stopped_reason = None
+
+    while len([item for item in results if item.get("processed") is True]) < max_tasks:
+        processed_count = len([item for item in results if item.get("processed") is True])
+        wave_size = min(max_concurrency, max_tasks - processed_count)
+        ready = _ready_parallel_tasks(
+            limit=wave_size,
+            project_name=project_name,
+            project_dir=project_dir,
+        )
+        if not ready:
+            remaining = [
+                task
+                for task in list_tasks(limit=10000, project_name=project_name, project_dir=project_dir)
+                if task.get("status") == "queued"
+            ]
+            stopped_reason = "waiting_for_dependencies" if remaining else "no_queued_tasks"
+            break
+
+        task_ids = [int(task["id"]) for task in ready]
+        _log(f"parallel wave start | task_ids={task_ids}")
+        with ThreadPoolExecutor(max_workers=len(task_ids), thread_name_prefix="takeflow-queue") as executor:
+            wave_results = list(executor.map(process_queued_task_real_by_id, task_ids))
+        results.extend(wave_results)
+
+        wave_failed = False
+        for result in wave_results:
+            if result.get("status") == "completed":
+                completed += 1
+            elif result.get("status") in {"failed", "recoverable"}:
+                failed += 1
+                wave_failed = True
+        _log(f"parallel wave finished | task_ids={task_ids}")
+        if stop_on_failure and wave_failed:
+            stopped_reason = "stopped_on_failure"
+            break
+
+    processed_count = len([item for item in results if item.get("processed") is True])
+    _log(
+        f"parallel queue loop finished | processed={processed_count} "
+        f"completed={completed} failed={failed} stopped_reason={stopped_reason}"
+    )
+    return {
+        "dry_run": False,
+        "max_tasks": max_tasks,
+        "max_concurrency": max_concurrency,
         "processed_count": processed_count,
         "completed_count": completed,
         "failed_count": failed,

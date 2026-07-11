@@ -25,6 +25,8 @@ Do not reintroduce the removed Text-to-Audio module.
 - Never read, print, stage or publish .env.
 - Never call Segmind or another paid API during diagnostics.
 - Never start a paid generation without explicit user confirmation.
+- Queue scheduler tests must stub the paid worker. Parallel mode may run 1-10 independent jobs, but continuation children must never start before their parent completes.
+- Do not infer a Segmind concurrency allowance from RPM alone; keep the user-selected concurrency cap explicit.
 - Never delete user outputs, videos, references, results, history or databases as cleanup.
 - Do not modify C:\AI_OUTPUT or another configured output root during routine checks.
 - Do not weaken confirmation dialogs or refresh guards.

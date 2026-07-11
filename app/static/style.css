@@ -1251,6 +1251,15 @@ button:disabled {
   max-width: 360px;
 }
 
+.queue-loop-form .small-grid {
+  max-width: 760px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.control-disabled {
+  opacity: 0.56;
+}
+
 .paid-confirm-modal {
   position: fixed;
   inset: 0;
